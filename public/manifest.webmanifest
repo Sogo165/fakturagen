@@ -1,0 +1,19 @@
+{
+  "name": "FakturaGen — faktury bez starostí",
+  "short_name": "FakturaGen",
+  "description": "Lokální vystavování faktur pro živnostníky.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7f5",
+  "theme_color": "#205b4c",
+  "lang": "cs",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
