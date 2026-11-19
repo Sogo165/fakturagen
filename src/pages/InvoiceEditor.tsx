@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import type { Invoice, InvoiceItem, Party, VatRate } from '../types';
 import { addDays, calculateInvoice, createInvoice, createInvoiceItem, formatDate, formatMoney, numericVariableSymbol, roundMoney, supplierFromSettings } from '../lib/invoice';
 import { PartyFields } from '../components/PartyFields';
+import { ClientLookup } from '../components/ClientLookup';
 import { Modal } from '../components/Modal';
 import { InvoiceDocument } from '../components/InvoiceDocument';
 
@@ -65,13 +66,9 @@ export function InvoiceEditor({ invoiceId, navigate }: InvoiceEditorProps) {
     }));
   };
 
-  const chooseClient = (id: string) => {
-    setSelectedClient(id);
+  const selectLookupClient = (party: Party, savedClientId?: string) => {
+    setSelectedClient(savedClientId ?? '');
     setAddedToClients(false);
-    if (!id) return;
-    const client = data.clients.find((item) => item.id === id);
-    if (!client) return;
-    const { id: _id, createdAt: _createdAt, ...party } = client;
     setInvoice((current) => ({ ...current, client: party }));
   };
 
@@ -156,7 +153,7 @@ export function InvoiceEditor({ invoiceId, navigate }: InvoiceEditorProps) {
             <div className="section-content">
               <div className="supplier-box"><span className="supplier-icon"><Building2 size={21} /></span><div><small>DODAVATEL</small><strong>{invoice.supplier.name || 'Není nastaven profil živnostníka'}</strong><span>{[invoice.supplier.ico && `IČO: ${invoice.supplier.ico}`, invoice.supplier.street, invoice.supplier.city].filter(Boolean).join(' · ') || 'Doplňte své fakturační údaje'}</span></div><button className="text-button" type="button" onClick={() => navigate('/settings')}><Settings2 size={16} /> {supplierComplete ? 'Upravit profil' : 'Nastavit profil'} <ChevronRight size={15} /></button></div>
               <div className="subsection-heading"><span className="small-section-icon"><UserRound size={18} /></span><h4>Odběratel</h4></div>
-              {data.clients.length > 0 && <label className="form-field client-picker"><span>Vyplnit z adresáře</span><select value={selectedClient} onChange={(event) => chooseClient(event.target.value)}><option value="">— Vyberte uloženého odběratele —</option>{data.clients.map((client) => <option value={client.id} key={client.id}>{client.name}{client.ico ? ` (IČO: ${client.ico})` : ''}</option>)}</select></label>}
+              <ClientLookup clients={data.clients} onSelect={selectLookupClient} />
               <PartyFields value={invoice.client} onChange={updateClient} emailLabel="E-mail pro zaslání faktury" />
               <div className="client-save-row"><span>Údaje můžete použít i pro další faktury.</span><button className="text-button" type="button" onClick={addCurrentClient} disabled={addedToClients}>{addedToClients ? <Check size={16} /> : <Save size={16} />}{addedToClients ? 'Uloženo v adresáři' : 'Uložit do adresáře'}</button></div>
             </div>

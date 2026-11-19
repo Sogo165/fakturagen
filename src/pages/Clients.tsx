@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import type { Client, Party } from '../types';
 import { Modal, ConfirmDialog } from '../components/Modal';
 import { PartyFields } from '../components/PartyFields';
+import { ClientLookup } from '../components/ClientLookup';
 
 const blankParty: Party = { name: '', ico: '', dic: '', street: '', city: '', zip: '', country: 'Česká republika', email: '', phone: '', web: '' };
 
@@ -71,6 +72,19 @@ export function Clients({ initialNew = false }: { initialNew?: boolean }) {
       {editing && <Modal title={isNew ? 'Nový odběratel' : 'Upravit odběratele'} onClose={() => setEditing(null)} wide>
         <form onSubmit={submit}>
           {error && <div className="form-error" role="alert">{error}</div>}
+          {isNew && <ClientLookup
+            clients={data.clients}
+            onSelect={(party, savedClientId) => {
+              const existingClient = savedClientId ? data.clients.find((client) => client.id === savedClientId) : undefined;
+              if (existingClient) {
+                setEditing({ ...existingClient });
+                setIsNew(false);
+              } else {
+                setEditing((current) => current ? { ...current, ...party, email: current.email, phone: current.phone, web: current.web } : current);
+              }
+              setError('');
+            }}
+          />}
           <PartyFields value={editing} onChange={(party) => setEditing({ ...editing, ...party })} emailLabel="E-mail pro zaslání faktury" />
           <div className="modal-actions"><button className="button button-secondary" type="button" onClick={() => setEditing(null)}>Zrušit</button><button className="button button-primary" type="submit">{isNew ? 'Přidat odběratele' : 'Uložit změny'}</button></div>
         </form>
