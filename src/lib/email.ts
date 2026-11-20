@@ -1,4 +1,6 @@
 import type { Invoice } from '../types';
+import { translate } from '../i18n';
+import type { Language } from '../i18n';
 
 export interface InvoiceEmail {
   recipient: string;
@@ -7,16 +9,17 @@ export interface InvoiceEmail {
   mailto: string;
 }
 
-export function buildInvoiceEmail(invoice: Invoice, recipient: string): InvoiceEmail {
-  const month = new Intl.DateTimeFormat('cs-CZ', { month: 'long', year: 'numeric' })
+export function buildInvoiceEmail(invoice: Invoice, recipient: string, language: Language = 'cs'): InvoiceEmail {
+  const locale = language === 'cs' ? 'cs-CZ' : 'en-GB';
+  const month = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' })
     .format(new Date(`${invoice.issueDate || new Date().toISOString().slice(0, 10)}T12:00:00`));
-  const subject = `Faktura ${invoice.number} – ${month}`;
+  const subject = translate(language, 'email.subject', { number: invoice.number, month });
   const body = [
-    'Dobrý den,',
+    translate(language, 'email.hello'),
     '',
-    `v příloze posílám fakturu č. ${invoice.number} k úhradě.`,
+    translate(language, 'email.body', { number: invoice.number }),
     '',
-    'Děkuji,',
+    translate(language, 'email.thanks'),
     invoice.supplier.name,
   ].join('\n');
   const candidate = recipient.replace(/[\r\n\s]/g, '').trim();

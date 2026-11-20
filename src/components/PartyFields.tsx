@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import type { Party } from '../types';
+import { useI18n } from '../i18n';
 
 interface PartyFieldsProps {
   value: Party;
@@ -8,8 +9,9 @@ interface PartyFieldsProps {
   emailLabel?: string;
 }
 
-export function PartyFields({ value, onChange, requireIdentifiers = false, emailLabel = 'E-mail' }: PartyFieldsProps) {
+export function PartyFields({ value, onChange, requireIdentifiers = false, emailLabel }: PartyFieldsProps) {
   const id = useId();
+  const { t } = useI18n();
   const update = (field: keyof Party, fieldValue: string) => onChange({ ...value, [field]: fieldValue });
   const field = (key: keyof Party, label: string, options: { required?: boolean; full?: boolean; type?: string; placeholder?: string; inputMode?: 'text' | 'numeric' | 'email' | 'tel' | 'url' } = {}) => (
     <label className={`form-field ${options.full ? 'field-full' : ''}`} htmlFor={`${id}-${key}`}>
@@ -20,16 +22,16 @@ export function PartyFields({ value, onChange, requireIdentifiers = false, email
 
   return (
     <div className="form-grid">
-      {field('name', 'Název / jméno', { required: true, full: true, placeholder: 'Např. Jan Novák nebo Firma s.r.o.' })}
-      {field('ico', 'IČO', { required: requireIdentifiers, placeholder: '12345678' })}
-      {field('dic', 'DIČ', { placeholder: 'CZ12345678' })}
-      {field('street', 'Ulice a číslo popisné', { full: true, placeholder: 'Hlavní 123' })}
-      {field('city', 'Město', { placeholder: 'Praha' })}
-      {field('zip', 'PSČ', { placeholder: '110 00', inputMode: 'numeric' })}
-      {field('country', 'Země', { full: true, placeholder: 'Česká republika' })}
-      {field('email', emailLabel, { type: 'email', inputMode: 'email', placeholder: 'jan@example.cz' })}
-      {field('phone', 'Telefon', { type: 'tel', inputMode: 'tel', placeholder: '+420 777 123 456' })}
-      {field('web', 'Web', { full: true, type: 'url', inputMode: 'url', placeholder: 'https://www.example.cz' })}
+      {field('name', t('party.name'), { required: true, full: true, placeholder: t('party.placeholderName') })}
+      {field('ico', t('party.ico'), { required: requireIdentifiers, placeholder: '12345678' })}
+      {field('dic', t('party.dic'), { placeholder: 'CZ12345678' })}
+      {field('street', t('party.street'), { full: true, placeholder: t('party.placeholderStreet') })}
+      {field('city', t('party.city'), { placeholder: t('party.placeholderCity') })}
+      {field('zip', t('party.zip'), { placeholder: t('party.placeholderZip'), inputMode: 'numeric' })}
+      {field('country', t('party.country'), { full: true, placeholder: t('party.placeholderCountry') })}
+      {field('email', emailLabel ?? t('party.email'), { type: 'email', inputMode: 'email', placeholder: t('party.placeholderEmail') })}
+      {field('phone', t('party.phone'), { type: 'tel', inputMode: 'tel', placeholder: t('party.placeholderPhone') })}
+      {field('web', t('party.web'), { full: true, type: 'url', inputMode: 'url', placeholder: t('party.placeholderWeb') })}
     </div>
   );
 }

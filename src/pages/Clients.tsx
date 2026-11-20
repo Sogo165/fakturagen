@@ -6,16 +6,20 @@ import { Modal, ConfirmDialog } from '../components/Modal';
 import { PartyFields } from '../components/PartyFields';
 import { ClientLookup } from '../components/ClientLookup';
 import { createId } from '../lib/id';
-
-const blankParty: Party = { name: '', ico: '', dic: '', street: '', city: '', zip: '', country: 'Česká republika', email: '', phone: '', web: '' };
+import { useI18n } from '../i18n';
 
 export function Clients({ initialNew = false }: { initialNew?: boolean }) {
   const { data, saveClient, deleteClient } = useApp();
+  const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Client | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [toDelete, setToDelete] = useState<Client | null>(null);
   const [error, setError] = useState('');
+
+  const blankParty = (): Party => ({
+    name: '', ico: '', dic: '', street: '', city: '', zip: '', country: t('party.countryDefault'), email: '', phone: '', web: '',
+  });
 
   useEffect(() => {
     if (initialNew) openNew();
@@ -27,16 +31,16 @@ export function Clients({ initialNew = false }: { initialNew?: boolean }) {
   }, [data.clients, search]);
 
   function openNew() {
-    setEditing({ ...blankParty, id: createId(), createdAt: new Date().toISOString() });
+    setEditing({ ...blankParty(), id: createId(), createdAt: new Date().toISOString() });
     setIsNew(true);
     setError('');
   }
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editing?.name.trim()) { setError('Vyplňte název nebo jméno odběratele.'); return; }
+    if (!editing?.name.trim()) { setError(t('clients.errorName')); return; }
     const duplicate = data.clients.some((client) => client.id !== editing.id && editing.ico && client.ico === editing.ico);
-    if (duplicate) { setError('Odběratel s tímto IČO už v adresáři existuje.'); return; }
+    if (duplicate) { setError(t('clients.errorDuplicate')); return; }
     saveClient({ ...editing, name: editing.name.trim() });
     setEditing(null);
   };
@@ -44,20 +48,20 @@ export function Clients({ initialNew = false }: { initialNew?: boolean }) {
   return (
     <div className="page-stack">
       <section className="page-heading">
-        <div><p className="eyebrow">ADRESÁŘ</p><h2>Odběratelé</h2><p>Mějte údaje svých zákazníků vždy po ruce.</p></div>
-        <button className="button button-primary" type="button" onClick={openNew}><UserPlus size={18} /> Přidat odběratele</button>
+        <div><p className="eyebrow">{t('clients.eyebrow')}</p><h2>{t('clients.title')}</h2><p>{t('clients.subtitle')}</p></div>
+        <button className="button button-primary" type="button" onClick={openNew}><UserPlus size={18} /> {t('clients.add')}</button>
       </section>
       <section className="panel list-panel">
         <div className="list-toolbar">
-          <label className="search-field"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Hledat podle názvu, IČO nebo e-mailu…" aria-label="Hledat odběratele" /></label>
-          <span className="toolbar-count"><UsersRound size={17} /> {data.clients.length} kontaktů</span>
+          <label className="search-field"><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('clients.searchPlaceholder')} aria-label={t('clients.searchAria')} /></label>
+          <span className="toolbar-count"><UsersRound size={17} /> {t('clients.contactCount', { count: data.clients.length })}</span>
         </div>
         {filtered.length ? (
           <div className="client-grid">{filtered.map((client) => (
             <article className="client-card" key={client.id}>
-              <div className="client-card-top"><span className="client-avatar">{client.name.trim().slice(0, 2).toUpperCase() || <Building2 size={21} />}</span><div className="row-actions"><button className="icon-button" type="button" onClick={() => { setEditing({ ...client }); setIsNew(false); setError(''); }} aria-label={`Upravit ${client.name}`}><Pencil size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => setToDelete(client)} aria-label={`Smazat ${client.name}`}><Trash2 size={16} /></button></div></div>
+              <div className="client-card-top"><span className="client-avatar">{client.name.trim().slice(0, 2).toUpperCase() || <Building2 size={21} />}</span><div className="row-actions"><button className="icon-button" type="button" onClick={() => { setEditing({ ...client }); setIsNew(false); setError(''); }} aria-label={t('clients.editAria', { name: client.name })}><Pencil size={17} /></button><button className="icon-button danger-icon" type="button" onClick={() => setToDelete(client)} aria-label={t('clients.deleteAria', { name: client.name })}><Trash2 size={16} /></button></div></div>
               <h3>{client.name}</h3>
-              <p className="client-identifiers">{client.ico ? `IČO: ${client.ico}` : 'IČO neuvedeno'}{client.dic && ` · DIČ: ${client.dic}`}</p>
+              <p className="client-identifiers">{client.ico ? `${t('labels.ico')}: ${client.ico}` : t('clients.icoMissing')}{client.dic && ` · ${t('labels.dic')}: ${client.dic}`}</p>
               <div className="client-details">
                 {(client.street || client.city) && <p><Building2 size={16} /><span>{[client.street, `${client.zip} ${client.city}`.trim()].filter(Boolean).join(', ')}</span></p>}
                 {client.email && <p><Mail size={16} /><a href={`mailto:${client.email}`}>{client.email}</a></p>}
@@ -66,11 +70,11 @@ export function Clients({ initialNew = false }: { initialNew?: boolean }) {
             </article>
           ))}</div>
         ) : (
-          <div className="empty-state"><span className="empty-illustration"><UsersRound size={33} /></span><h3>{search ? 'Žádný odběratel neodpovídá hledání' : 'Váš adresář je zatím prázdný'}</h3><p>{search ? 'Zkuste zadat jiný výraz.' : 'Přidejte prvního odběratele a příště jeho údaje nemusíte vypisovat znovu.'}</p>{search ? <button className="button button-secondary" type="button" onClick={() => setSearch('')}>Zrušit hledání</button> : <button className="button button-primary" type="button" onClick={openNew}><Plus size={18} /> Přidat prvního odběratele</button>}</div>
+          <div className="empty-state"><span className="empty-illustration"><UsersRound size={33} /></span><h3>{search ? t('clients.emptySearchTitle') : t('clients.emptyTitle')}</h3><p>{search ? t('clients.emptySearchText') : t('clients.emptyText')}</p>{search ? <button className="button button-secondary" type="button" onClick={() => setSearch('')}>{t('clients.resetSearch')}</button> : <button className="button button-primary" type="button" onClick={openNew}><Plus size={18} /> {t('clients.addFirst')}</button>}</div>
         )}
       </section>
 
-      {editing && <Modal title={isNew ? 'Nový odběratel' : 'Upravit odběratele'} onClose={() => setEditing(null)} wide>
+      {editing && <Modal title={isNew ? t('clients.newTitle') : t('clients.editTitle')} onClose={() => setEditing(null)} wide>
         <form onSubmit={submit}>
           {error && <div className="form-error" role="alert">{error}</div>}
           {isNew && <ClientLookup
@@ -86,11 +90,11 @@ export function Clients({ initialNew = false }: { initialNew?: boolean }) {
               setError('');
             }}
           />}
-          <PartyFields value={editing} onChange={(party) => setEditing({ ...editing, ...party })} emailLabel="E-mail pro zaslání faktury" />
-          <div className="modal-actions"><button className="button button-secondary" type="button" onClick={() => setEditing(null)}>Zrušit</button><button className="button button-primary" type="submit">{isNew ? 'Přidat odběratele' : 'Uložit změny'}</button></div>
+          <PartyFields value={editing} onChange={(party) => setEditing({ ...editing, ...party })} emailLabel={t('party.emailForInvoice')} />
+          <div className="modal-actions"><button className="button button-secondary" type="button" onClick={() => setEditing(null)}>{t('common.cancel')}</button><button className="button button-primary" type="submit">{isNew ? t('clients.addSubmit') : t('common.saveChanges')}</button></div>
         </form>
       </Modal>}
-      {toDelete && <ConfirmDialog title="Odebrat odběratele?" message={`Kontakt ${toDelete.name} bude odebrán z adresáře. Již vystavené faktury zůstanou beze změny.`} confirmLabel="Odebrat" danger onClose={() => setToDelete(null)} onConfirm={() => deleteClient(toDelete.id)} />}
+      {toDelete && <ConfirmDialog title={t('clients.deleteTitle')} message={t('clients.deleteMessage', { name: toDelete.name })} confirmLabel={t('clients.deleteConfirm')} danger onClose={() => setToDelete(null)} onConfirm={() => deleteClient(toDelete.id)} />}
     </div>
   );
 }

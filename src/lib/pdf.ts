@@ -2,6 +2,8 @@ import QRCode from 'qrcode';
 import type { jsPDF as JsPdfType } from 'jspdf';
 import type { Invoice } from '../types';
 import { calculateInvoice, formatDate, formatMoney, paymentQrString, roundMoney } from './invoice';
+import { translate } from '../i18n';
+import type { Language } from '../i18n';
 import regularFontUrl from '../assets/fonts/Roboto-Regular.ttf?url';
 import boldFontUrl from '../assets/fonts/Roboto-Bold.ttf?url';
 
@@ -34,10 +36,10 @@ function safeFilePart(value: string, fallback: string) {
   return part || fallback;
 }
 
-export function invoicePdfFilename(invoice: Invoice) {
+export function invoicePdfFilename(invoice: Invoice, language: Language = 'cs') {
   const number = safeFilePart(invoice.number, 'faktura');
-  const client = safeFilePart(invoice.client.name, 'bez-odberatele');
-  return `Faktura_${number}_${client}.pdf`;
+  const client = safeFilePart(invoice.client.name, language === 'cs' ? 'bez-odberatele' : 'no-client');
+  return `${language === 'cs' ? 'Faktura' : 'Invoice'}_${number}_${client}.pdf`;
 }
 
 async function loadFontBase64(url: string) {
@@ -75,8 +77,8 @@ function horizontalRule(pdf: Pdf, y: number, color = LINE, width = 0.25) {
   pdf.line(MARGIN, y, CONTENT_RIGHT, y);
 }
 
-function cleanMoney(value: number, currency: string) {
-  return formatMoney(value, currency).replace(/\u00a0/g, ' ');
+function cleanMoney(value: number, currency: string, locale: string) {
+  return formatMoney(value, currency, locale).replace(/\u00a0/g, ' ');
 }
 
 function fitFontSize(pdf: Pdf, text: string, maxWidth: number, size: number, minSize = 8) {
@@ -96,7 +98,7 @@ function partyAddress(party: Invoice['client']) {
   ].filter(Boolean).flatMap((line) => line.split('\n'));
 }
 
-function drawDocumentHeader(pdf: Pdf, invoice: Invoice) {
+function drawDocumentHeader(pdf: Pdf, invoice: Invoice, language: Language) {
   pdf.setFillColor(...GREEN);
   pdf.rect(0, 0, PAGE_WIDTH, 2.8, 'F');
 
@@ -119,20 +121,20 @@ function drawDocumentHeader(pdf: Pdf, invoice: Invoice) {
   }
 
   font(pdf, 8, 'bold', GREEN);
-  pdf.text('FAKTURA', CONTENT_RIGHT, 15.5, { align: 'right' });
+  pdf.text(translate(language, 'document.title'), CONTENT_RIGHT, 15.5, { align: 'right' });
   font(pdf, 22, 'bold', GREEN);
   fitFontSize(pdf, invoice.number, 72, 22, 13);
   pdf.text(invoice.number, CONTENT_RIGHT, 27, { align: 'right' });
   font(pdf, 8.7, 'normal', MUTED);
-  pdf.text(invoice.supplier.vatPayer ? 'Daňový doklad' : 'Doklad o poskytnutí služby', CONTENT_RIGHT, 33.5, { align: 'right' });
+  pdf.text(translate(language, invoice.supplier.vatPayer ? 'document.taxDocument' : 'document.serviceDocument'), CONTENT_RIGHT, 33.5, { align: 'right' });
 
   horizontalRule(pdf, 39, GREEN, 0.7);
 }
 
-function drawParties(pdf: Pdf, invoice: Invoice) {
+function drawParties(pdf: Pdf, invoice: Invoice, language: Language) {
   font(pdf, 7.8, 'bold', MUTED);
-  pdf.text('DODAVATEL', MARGIN, 49);
-  pdf.text('ODBĚRATEL', 110, 49);
+  pdf.text(translate(language, 'document.supplier'), MARGIN, 49);
+  pdf.text(translate(language, 'document.customer'), 110, 49);
   let supplierEnd = 49;
   let clientEnd = 49;
 
@@ -149,7 +151,7 @@ function drawParties(pdf: Pdf, invoice: Invoice) {
       y += 4.7;
     }
   }
-  const supplierMeta = [invoice.supplier.ico && `IČO: ${invoice.supplier.ico}`, invoice.supplier.dic && `DIČ: ${invoice.supplier.dic}`].filter(Boolean).join('    ');
+  const supplierMeta = [invoice.supplier.ico && `${translate(language, 'labels.ico')}: ${invoice.supplier.ico}`, invoice.supplier.dic && `${translate(language, 'labels.dic')}: ${invoice.supplier.dic}`].filter(Boolean).join('    ');
   if (supplierMeta) {
     y += 2;
     font(pdf, 8.8, 'normal', MUTED);
@@ -171,7 +173,7 @@ function drawParties(pdf: Pdf, invoice: Invoice) {
       y += 4.7;
     }
   }
-  const clientMeta = [invoice.client.ico && `IČO: ${invoice.client.ico}`, invoice.client.dic && `DIČ: ${invoice.client.dic}`].filter(Boolean).join('    ');
+  const clientMeta = [invoice.client.ico && `${translate(language, 'labels.ico')}: ${invoice.client.ico}`, invoice.client.dic && `${translate(language, 'labels.dic')}: ${invoice.client.dic}`].filter(Boolean).join('    ');
   if (clientMeta) {
     y += 2;
     font(pdf, 8.8, 'normal', MUTED);
@@ -183,22 +185,23 @@ function drawParties(pdf: Pdf, invoice: Invoice) {
   return Math.max(supplierEnd, clientEnd);
 }
 
-function drawDates(pdf: Pdf, invoice: Invoice, top: number) {
+function drawDates(pdf: Pdf, invoice: Invoice, top: number, language: Language) {
+  const locale = language === 'cs' ? 'cs-CZ' : 'en-GB';
   const boxHeight = 21;
   pdf.setFillColor(...LIGHT);
   pdf.roundedRect(MARGIN, top, CONTENT_WIDTH, boxHeight, 1.4, 1.4, 'F');
 
   const labels = [
-    'Datum vystavení',
-    invoice.supplier.vatPayer ? 'Datum zdanitelného plnění' : 'Datum plnění',
-    'Datum splatnosti',
-    'Způsob úhrady',
+    translate(language, 'document.issuedDate'),
+    translate(language, invoice.supplier.vatPayer ? 'document.taxDate' : 'document.supplyDate'),
+    translate(language, 'document.dueDate'),
+    translate(language, 'document.paymentMethod'),
   ];
   const values = [
-    formatDate(invoice.issueDate),
-    formatDate(invoice.taxDate),
-    formatDate(invoice.dueDate),
-    invoice.paymentMethod === 'bank' ? 'Bankovní převod' : 'Hotově',
+    formatDate(invoice.issueDate, locale),
+    formatDate(invoice.taxDate, locale),
+    formatDate(invoice.dueDate, locale),
+    translate(language, invoice.paymentMethod === 'bank' ? 'document.bankTransfer' : 'document.cash'),
   ];
   const cellWidth = CONTENT_WIDTH / 4;
 
@@ -239,46 +242,47 @@ function itemColumns(isVatPayer: boolean): ItemColumns {
     : { descriptionX: MARGIN, descriptionWidth: 92, quantityX: 133, priceX: 165, vatX: 0, totalX: CONTENT_RIGHT, quantityHeaderX: 120, priceHeaderX: 150, vatHeaderX: 0, totalHeaderX: 182 };
 }
 
-function drawTableHeader(pdf: Pdf, y: number, isVatPayer: boolean) {
+function drawTableHeader(pdf: Pdf, y: number, isVatPayer: boolean, language: Language) {
   const columns = itemColumns(isVatPayer);
   pdf.setFillColor(...LIGHT_GREEN);
   pdf.rect(MARGIN, y, CONTENT_WIDTH, 8, 'F');
   font(pdf, 7.4, 'bold', MUTED);
-  pdf.text('POPIS POLOŽKY', columns.descriptionX + 2, y + 5.3);
-  pdf.text('MNOŽSTVÍ', columns.quantityHeaderX, y + 5.3, { align: 'center' });
-  pdf.text('CENA / JEDN.', columns.priceHeaderX, y + 5.3, { align: 'center' });
-  if (isVatPayer) pdf.text('DPH', columns.vatHeaderX, y + 5.3, { align: 'center' });
-  pdf.text('CELKEM', columns.totalHeaderX, y + 5.3, { align: 'center' });
+  pdf.text(translate(language, 'document.itemDescription'), columns.descriptionX + 2, y + 5.3);
+  pdf.text(translate(language, 'document.quantity'), columns.quantityHeaderX, y + 5.3, { align: 'center' });
+  pdf.text(translate(language, 'document.unitPrice'), columns.priceHeaderX, y + 5.3, { align: 'center' });
+  if (isVatPayer) pdf.text(translate(language, 'document.vat'), columns.vatHeaderX, y + 5.3, { align: 'center' });
+  pdf.text(translate(language, 'document.total'), columns.totalHeaderX, y + 5.3, { align: 'center' });
   return y + 8;
 }
 
-function drawContinuationHeader(pdf: Pdf, invoice: Invoice) {
+function drawContinuationHeader(pdf: Pdf, invoice: Invoice, language: Language) {
   pdf.setFillColor(...GREEN);
   pdf.rect(0, 0, PAGE_WIDTH, 2.8, 'F');
   font(pdf, 10.5, 'bold', GREEN);
-  pdf.text(invoice.supplier.name || 'Dodavatel', MARGIN, 17);
+  pdf.text(invoice.supplier.name || translate(language, 'editor.supplier'), MARGIN, 17);
   font(pdf, 9, 'normal', MUTED);
-  pdf.text(`Faktura ${invoice.number}`, CONTENT_RIGHT, 17, { align: 'right' });
+  pdf.text(`${translate(language, 'document.title')} ${invoice.number}`, CONTENT_RIGHT, 17, { align: 'right' });
   horizontalRule(pdf, 22, LINE);
   return 31;
 }
 
-function drawItemsTable(pdf: Pdf, invoice: Invoice, top: number) {
+function drawItemsTable(pdf: Pdf, invoice: Invoice, top: number, language: Language) {
+  const locale = language === 'cs' ? 'cs-CZ' : 'en-GB';
   const isVatPayer = invoice.supplier.vatPayer;
   const columns = itemColumns(isVatPayer);
-  let y = drawTableHeader(pdf, top, isVatPayer);
+  let y = drawTableHeader(pdf, top, isVatPayer, language);
   let rowIndex = 0;
 
   for (const item of invoice.items) {
     font(pdf, 9.5, 'normal', INK);
-    const description = item.description || 'Položka faktury';
+    const description = item.description || translate(language, 'document.defaultItem');
     const descriptionLines = pdf.splitTextToSize(description, columns.descriptionWidth) as string[];
     const rowHeight = Math.max(12, descriptionLines.length * 4.7 + 6);
 
     if (y + rowHeight > CONTENT_BOTTOM) {
       pdf.addPage();
-      y = drawContinuationHeader(pdf, invoice);
-      y = drawTableHeader(pdf, y, isVatPayer);
+      y = drawContinuationHeader(pdf, invoice, language);
+      y = drawTableHeader(pdf, y, isVatPayer, language);
     }
 
     if (rowIndex % 2 === 1) {
@@ -289,17 +293,17 @@ function drawItemsTable(pdf: Pdf, invoice: Invoice, top: number) {
     font(pdf, 9.5, 'normal', INK);
     descriptionLines.forEach((line, index) => pdf.text(line, columns.descriptionX + 2, y + 6.2 + index * 4.7));
 
-    const quantity = `${item.quantity.toLocaleString('cs-CZ')} ${item.unit}`.trim();
+    const quantity = `${item.quantity.toLocaleString(locale)} ${item.unit}`.trim();
     font(pdf, 9.2, 'normal', MUTED);
     pdf.text(quantity, columns.quantityX, y + 6.2, { align: 'right' });
     const base = roundMoney(Math.max(0, item.quantity) * Math.max(0, item.unitPrice));
     font(pdf, 9.2, 'normal', MUTED);
-    pdf.text(cleanMoney(item.unitPrice, invoice.currency), columns.priceX, y + 6.2, { align: 'right' });
+    pdf.text(cleanMoney(item.unitPrice, invoice.currency, locale), columns.priceX, y + 6.2, { align: 'right' });
     if (isVatPayer) {
       pdf.text(`${item.vatRate} %`, columns.vatX, y + 6.2, { align: 'right' });
     }
     font(pdf, 9.5, 'bold', INK);
-    pdf.text(cleanMoney(base, invoice.currency), columns.totalX, y + 6.2, { align: 'right' });
+    pdf.text(cleanMoney(base, invoice.currency, locale), columns.totalX, y + 6.2, { align: 'right' });
 
     y += rowHeight;
     pdf.setDrawColor(...LINE);
@@ -311,7 +315,8 @@ function drawItemsTable(pdf: Pdf, invoice: Invoice, top: number) {
   return y;
 }
 
-function drawTotals(pdf: Pdf, invoice: Invoice, top: number) {
+function drawTotals(pdf: Pdf, invoice: Invoice, top: number, language: Language) {
+  const locale = language === 'cs' ? 'cs-CZ' : 'en-GB';
   const isVatPayer = invoice.supplier.vatPayer;
   const totals = calculateInvoice(invoice.items.map((item) => isVatPayer ? item : { ...item, vatRate: 0 as const }));
   const x = 123;
@@ -320,30 +325,30 @@ function drawTotals(pdf: Pdf, invoice: Invoice, top: number) {
 
   if (isVatPayer) {
     font(pdf, 8.5, 'normal', MUTED);
-    pdf.text('Základ daně', x, currentY);
+    pdf.text(translate(language, 'document.taxBase'), x, currentY);
     font(pdf, 8.5, 'bold', INK);
-    pdf.text(cleanMoney(totals.subtotal, invoice.currency), CONTENT_RIGHT, currentY, { align: 'right' });
+    pdf.text(cleanMoney(totals.subtotal, invoice.currency, locale), CONTENT_RIGHT, currentY, { align: 'right' });
     currentY += 5.5;
 
     for (const group of totals.vatGroups.filter((entry) => entry.rate > 0)) {
       font(pdf, 8.5, 'normal', MUTED);
-      pdf.text(`DPH ${group.rate} %`, x, currentY);
+      pdf.text(`${translate(language, 'document.vat')} ${group.rate} %`, x, currentY);
       font(pdf, 8.5, 'bold', INK);
-      pdf.text(cleanMoney(group.vat, invoice.currency), CONTENT_RIGHT, currentY, { align: 'right' });
+      pdf.text(cleanMoney(group.vat, invoice.currency, locale), CONTENT_RIGHT, currentY, { align: 'right' });
       currentY += 5.5;
     }
     currentY += 2;
   } else {
     font(pdf, 8.3, 'normal', MUTED);
-    pdf.text('Nejsem plátcem DPH.', CONTENT_RIGHT, currentY, { align: 'right' });
+    pdf.text(translate(language, 'document.notVatPayer'), CONTENT_RIGHT, currentY, { align: 'right' });
     currentY += 5;
   }
 
   pdf.setFillColor(...GREEN);
   pdf.roundedRect(x, currentY, width, 29, 1.8, 1.8, 'F');
   font(pdf, 8.3, 'normal', WHITE);
-  pdf.text('Celkem k úhradě', x + 4.5, currentY + 8);
-  const amount = cleanMoney(totals.total, invoice.currency);
+  pdf.text(translate(language, 'document.totalDue'), x + 4.5, currentY + 8);
+  const amount = cleanMoney(totals.total, invoice.currency, locale);
   font(pdf, 18, 'bold', WHITE);
   fitFontSize(pdf, amount, width - 9, 18, 10);
   pdf.text(amount, x + width - 4.5, currentY + 21.5, { align: 'right' });
@@ -351,18 +356,18 @@ function drawTotals(pdf: Pdf, invoice: Invoice, top: number) {
   return currentY + 29;
 }
 
-function drawPayment(pdf: Pdf, invoice: Invoice, top: number, qrDataUrl: string | null) {
+function drawPayment(pdf: Pdf, invoice: Invoice, top: number, qrDataUrl: string | null, language: Language) {
   let y = top;
   font(pdf, 7.8, 'bold', MUTED);
-  pdf.text('PLATEBNÍ ÚDAJE', MARGIN, y);
+  pdf.text(translate(language, 'document.paymentDetails'), MARGIN, y);
   y += 7;
 
   if (invoice.paymentMethod === 'bank') {
     const rows = [
-      ['Bankovní účet', invoice.supplier.bankAccount],
+      [translate(language, 'document.bankAccount'), invoice.supplier.bankAccount],
       invoice.supplier.iban ? ['IBAN', invoice.supplier.iban] : null,
-      ['Variabilní symbol', invoice.variableSymbol],
-      invoice.constantSymbol ? ['Konstantní symbol', invoice.constantSymbol] : null,
+      [translate(language, 'document.variableSymbol'), invoice.variableSymbol],
+      invoice.constantSymbol ? [translate(language, 'document.constantSymbol'), invoice.constantSymbol] : null,
     ].filter((row): row is string[] => Boolean(row && row[1]));
 
     for (const [label, value] of rows) {
@@ -379,15 +384,15 @@ function drawPayment(pdf: Pdf, invoice: Invoice, top: number, qrDataUrl: string 
       y += 2;
       pdf.addImage(qrDataUrl, 'PNG', MARGIN, y, 29, 29, undefined, 'FAST');
       font(pdf, 9, 'bold', GREEN);
-      pdf.text('QR platba', MARGIN + 33, y + 7);
+      pdf.text(translate(language, 'document.qrPayment'), MARGIN + 33, y + 7);
       font(pdf, 8, 'normal', MUTED);
-      pdf.text('Naskenujte kód', MARGIN + 33, y + 12);
-      pdf.text('v bankovní aplikaci.', MARGIN + 33, y + 16.3);
+      pdf.text(translate(language, 'document.qrScan'), MARGIN + 33, y + 12);
+      pdf.text(translate(language, 'document.qrInApp'), MARGIN + 33, y + 16.3);
       y += 29;
     }
   } else {
     font(pdf, 9.5, 'bold', INK);
-    pdf.text('Úhrada hotově', MARGIN, y + 1);
+    pdf.text(translate(language, 'document.cashPayment'), MARGIN, y + 1);
     y += 10;
   }
 
@@ -404,7 +409,7 @@ export interface InvoicePdfFile {
   blob: Blob;
 }
 
-export async function createInvoicePdf(invoice: Invoice): Promise<InvoicePdfFile> {
+export async function createInvoicePdf(invoice: Invoice, language: Language = 'cs'): Promise<InvoicePdfFile> {
   const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
@@ -418,10 +423,10 @@ export async function createInvoicePdf(invoice: Invoice): Promise<InvoicePdfFile
   pdf.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
   pdf.setFont('Roboto', 'normal');
 
-  drawDocumentHeader(pdf, invoice);
-  const partiesEnd = drawParties(pdf, invoice);
-  let y = drawDates(pdf, invoice, partiesEnd + 6);
-  y = drawItemsTable(pdf, invoice, y);
+  drawDocumentHeader(pdf, invoice, language);
+  const partiesEnd = drawParties(pdf, invoice, language);
+  let y = drawDates(pdf, invoice, partiesEnd + 6, language);
+  y = drawItemsTable(pdf, invoice, y, language);
 
   const qrData = paymentQrString(invoice);
   const qrDataUrl = qrData ? await QRCode.toDataURL(qrData, {
@@ -433,27 +438,27 @@ export async function createInvoicePdf(invoice: Invoice): Promise<InvoicePdfFile
 
   if (y + 78 > CONTENT_BOTTOM) {
     pdf.addPage();
-    y = drawContinuationHeader(pdf, invoice);
+    y = drawContinuationHeader(pdf, invoice, language);
   }
   const paymentTop = y + 11;
-  const paymentEnd = drawPayment(pdf, invoice, paymentTop, qrDataUrl);
-  const totalsEnd = drawTotals(pdf, invoice, paymentTop);
+  const paymentEnd = drawPayment(pdf, invoice, paymentTop, qrDataUrl, language);
+  const totalsEnd = drawTotals(pdf, invoice, paymentTop, language);
   y = Math.max(paymentEnd, totalsEnd) + 9;
 
   if (invoice.note) {
     const noteLines = wrapNote(pdf, invoice.note, CONTENT_WIDTH);
     if (y + 10 + noteLines.length * 4.7 > CONTENT_BOTTOM) {
       pdf.addPage();
-      y = drawContinuationHeader(pdf, invoice);
+      y = drawContinuationHeader(pdf, invoice, language);
     }
     font(pdf, 7.8, 'bold', MUTED);
-    pdf.text('POZNÁMKA', MARGIN, y);
+    pdf.text(translate(language, 'document.note'), MARGIN, y);
     y += 6;
     font(pdf, 9.5, 'normal', MUTED);
     for (const line of noteLines) {
       if (y > CONTENT_BOTTOM) {
         pdf.addPage();
-        y = drawContinuationHeader(pdf, invoice);
+        y = drawContinuationHeader(pdf, invoice, language);
         font(pdf, 9.5, 'normal', MUTED);
       }
       pdf.text(line, MARGIN, y);
@@ -471,18 +476,18 @@ export async function createInvoicePdf(invoice: Invoice): Promise<InvoicePdfFile
       pdf.text(contact, MARGIN, FOOTER_Y + 2);
     }
     font(pdf, 8, 'normal', MUTED);
-    pdf.text(`Strana ${page} / ${pageCount}`, CONTENT_RIGHT, FOOTER_Y + 2, { align: 'right' });
+    pdf.text(translate(language, 'document.page', { page, pages: pageCount }), CONTENT_RIGHT, FOOTER_Y + 2, { align: 'right' });
   }
 
   pdf.setProperties({
-    title: `Faktura ${invoice.number}`,
-    subject: `Faktura pro ${invoice.client.name}`,
+    title: `${translate(language, 'document.title')} ${invoice.number}`,
+    subject: `${translate(language, 'document.title')} – ${invoice.client.name}`,
     author: invoice.supplier.name,
     creator: 'FakturaGen',
   });
 
   return {
-    filename: invoicePdfFilename(invoice),
+    filename: invoicePdfFilename(invoice, language),
     blob: pdf.output('blob') as Blob,
   };
 }
@@ -496,8 +501,8 @@ export function savePdfFile({ blob, filename }: InvoicePdfFile) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function downloadInvoicePdf(invoice: Invoice) {
-  const pdf = await createInvoicePdf(invoice);
+export async function downloadInvoicePdf(invoice: Invoice, language: Language = 'cs') {
+  const pdf = await createInvoicePdf(invoice, language);
   savePdfFile(pdf);
   return pdf.filename;
 }

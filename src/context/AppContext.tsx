@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { AppData, Client, Invoice, InvoiceStatus, Settings } from '../types';
 import { createInvoice, localDateISO, nextInvoiceNumber, numericVariableSymbol, supplierFromSettings } from '../lib/invoice';
 import { createId } from '../lib/id';
+import { useI18n } from '../i18n';
 import { emptyData, loadData, saveData } from '../lib/storage';
 
 type Toast = { id: number; message: string; kind: 'success' | 'error' | 'info' } | null;
@@ -27,6 +28,8 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(loadData);
   const [toast, setToast] = useState<Toast>(null);
+  const { t, locale } = useI18n();
+  const defaultCountry = t('party.countryDefault');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const notify = useCallback((message: string, kind: 'success' | 'error' | 'info' = 'success') => {
@@ -39,9 +42,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       saveData(data);
     } catch {
-      notify('Data se nepodařilo uložit. Zkontrolujte dostupné místo v prohlížeči.', 'error');
+      notify(t('errors.storage'), 'error');
     }
-  }, [data, notify]);
+  }, [data, notify, t]);
 
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -51,7 +54,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const duplicate = data.invoices.some((item) =>
       item.id !== invoice.id && item.number.trim().toLowerCase() === invoice.number.trim().toLowerCase(),
     );
-    if (duplicate) throw new Error('Faktura s tímto číslem už existuje.');
+    if (duplicate) throw new Error('duplicate-invoice');
 
     setData((current) => ({
       ...current,
@@ -64,13 +67,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteInvoice = (id: string) => {
     setData((current) => ({ ...current, invoices: current.invoices.filter((item) => item.id !== id) }));
-    notify('Faktura byla smazána.');
+    notify(t('notify.invoiceDeleted'));
   };
 
   const duplicateInvoice = (id: string) => {
     const original = data.invoices.find((item) => item.id === id);
     if (!original) return null;
-    const fresh = createInvoice(data.settings);
+    const fresh = createInvoice(data.settings, locale === 'cs-CZ' ? 'ks' : 'pcs', defaultCountry);
     const now = new Date().toISOString();
     const duplicate: Invoice = {
       ...original,
@@ -92,7 +95,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       invoices: [duplicate, ...current.invoices],
       settings: { ...current.settings, nextNumber: current.settings.nextNumber + 1 },
     }));
-    notify('Faktura byla zkopírována jako nový koncept.');
+    notify(t('notify.invoiceDuplicated'));
     return duplicate;
   };
 
@@ -106,7 +109,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updatedAt: new Date().toISOString(),
       } : invoice),
     }));
-    notify(status === 'paid' ? 'Faktura je označená jako uhrazená.' : 'Stav faktury byl změněn.');
+    notify(status === 'paid' ? t('notify.invoicePaid') : t('notify.invoiceStatusChanged'));
   };
 
   const saveClient = (client: Client) => {
@@ -119,17 +122,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : [client, ...current.clients],
       };
     });
-    notify('Odběratel byl uložen.');
+    notify(t('notify.clientSaved'));
   };
 
   const deleteClient = (id: string) => {
     setData((current) => ({ ...current, clients: current.clients.filter((item) => item.id !== id) }));
-    notify('Odběratel byl odebrán z adresáře.');
+    notify(t('notify.clientDeleted'));
   };
 
   const updateSettings = (settings: Settings) => {
     setData((current) => ({ ...current, settings }));
-    notify('Nastavení bylo uloženo.');
+    notify(t('notify.settingsSaved'));
   };
 
   const replaceData = (imported: AppData) => {
@@ -137,7 +140,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     Object.keys(localStorage).forEach((key) => {
       if (key.startsWith('fakturagen:draft:')) localStorage.removeItem(key);
     });
-    notify('Záloha byla úspěšně obnovena.');
+    notify(t('notify.backupRestored'));
   };
 
   const resetData = () => {
@@ -145,7 +148,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     Object.keys(localStorage).forEach((key) => {
       if (key.startsWith('fakturagen:draft:')) localStorage.removeItem(key);
     });
-    notify('Všechna lokální data byla smazána.', 'info');
+    notify(t('notify.dataReset'), 'info');
   };
 
   return (

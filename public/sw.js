@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fakturagen-v2';
+const CACHE_NAME = 'fakturagen-v3';
 const APP_SCOPE = self.registration.scope;
 const APP_SHELL = [
   APP_SCOPE,

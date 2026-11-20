@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FileQuestion, FilePlus2 } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
+import { I18nProvider, useI18n } from './i18n';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { InvoiceList } from './pages/InvoiceList';
@@ -25,6 +26,7 @@ function readRoute(): Route {
 function Application() {
   const [route, setRoute] = useState<Route>(readRoute);
   const { data } = useApp();
+  const { t, language } = useI18n();
   const navigate = (path: string) => { window.location.hash = path.startsWith('/') ? path : `/${path}`; };
 
   useEffect(() => {
@@ -35,9 +37,12 @@ function Application() {
   }, []);
 
   useEffect(() => {
-    const titles = { dashboard: 'Přehled', invoices: 'Faktury', editor: 'Editor faktury', preview: 'Detail faktury', clients: 'Odběratelé', settings: 'Nastavení' };
-    document.title = `${titles[route.page]} | FakturaGen`;
-  }, [route.page]);
+    const titleKeys = {
+      dashboard: 'page.dashboard', invoices: 'page.invoices', editor: 'page.editor',
+      preview: 'page.preview', clients: 'page.clients', settings: 'page.settings',
+    } as const;
+    document.title = `${t(titleKeys[route.page])} | FakturaGen`;
+  }, [route.page, t, language]);
 
   const invoice = route.id ? data.invoices.find((item) => item.id === route.id) : undefined;
   let content: React.ReactNode;
@@ -58,9 +63,10 @@ function Application() {
 }
 
 function NotFound({ navigate }: { navigate: (path: string) => void }) {
-  return <div className="panel empty-state not-found"><span className="empty-illustration"><FileQuestion size={35} /></span><h2>Faktura nebyla nalezena</h2><p>Možná byla smazána, nebo odkaz není správný.</p><div className="heading-actions"><button className="button button-secondary" type="button" onClick={() => navigate('/invoices')}>Zpět na faktury</button><button className="button button-primary" type="button" onClick={() => navigate('/editor/new')}><FilePlus2 size={17} /> Nová faktura</button></div></div>;
+  const { t } = useI18n();
+  return <div className="panel empty-state not-found"><span className="empty-illustration"><FileQuestion size={35} /></span><h2>{t('notFound.title')}</h2><p>{t('notFound.text')}</p><div className="heading-actions"><button className="button button-secondary" type="button" onClick={() => navigate('/invoices')}>{t('notFound.back')}</button><button className="button button-primary" type="button" onClick={() => navigate('/editor/new')}><FilePlus2 size={17} /> {t('common.newInvoice')}</button></div></div>;
 }
 
 export default function App() {
-  return <AppProvider><Application /></AppProvider>;
+  return <I18nProvider><AppProvider><Application /></AppProvider></I18nProvider>;
 }

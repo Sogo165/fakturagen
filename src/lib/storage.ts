@@ -1,4 +1,5 @@
 import type { AppData, BackupFile, Settings } from '../types';
+import type { Language } from '../i18n';
 
 export const STORAGE_KEY = 'fakturagen:data:v1';
 
@@ -65,7 +66,7 @@ export function parseBackup(text: string): AppData {
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error('Soubor není platný JSON.');
+    throw new Error('invalid-json');
   }
 
   const candidate = parsed as Partial<BackupFile> | Partial<AppData>;
@@ -74,7 +75,7 @@ export function parseBackup(text: string): AppData {
     !data || !Array.isArray(data.invoices) || !Array.isArray(data.clients) ||
     !data.settings || typeof data.settings !== 'object'
   ) {
-    throw new Error('Soubor neobsahuje platnou zálohu FakturaGen.');
+    throw new Error('invalid-backup');
   }
 
   return {
@@ -84,13 +85,13 @@ export function parseBackup(text: string): AppData {
   };
 }
 
-export function downloadJson(data: AppData) {
+export function downloadJson(data: AppData, language: Language = 'cs') {
   const backup = createBackup(data);
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `fakturagen-zaloha-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.download = `fakturagen-${language === 'cs' ? 'zaloha' : 'backup'}-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
 }

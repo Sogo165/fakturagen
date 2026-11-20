@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { AlertCircle, Building2, LoaderCircle, Search, UsersRound, X } from 'lucide-react';
 import type { Client, Party } from '../types';
 import { aresCompanyToParty, lookupAres } from '../lib/ares';
+import { useI18n } from '../i18n';
 
 interface ClientLookupProps {
   clients: Client[];
@@ -39,10 +40,11 @@ function clientToParty(client: Client): Party {
 }
 
 export function ClientLookup({ clients, onSelect }: ClientLookupProps) {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<Party[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(false);
   const [searched, setSearched] = useState(false);
   const listId = useId();
   const trimmed = query.trim();
@@ -66,7 +68,7 @@ export function ClientLookup({ clients, onSelect }: ClientLookupProps) {
 
   useEffect(() => {
     setRemote([]);
-    setError('');
+    setError(false);
     setSearched(false);
     if (trimmed.length < 3 || tooShortIco) {
       setLoading(false);
@@ -82,7 +84,7 @@ export function ClientLookup({ clients, onSelect }: ClientLookupProps) {
         setSearched(true);
       } catch (lookupError) {
         if (lookupError instanceof DOMException && lookupError.name === 'AbortError') return;
-        setError('ARES teď není dostupné. Uložené kontakty můžete použít i bez připojení.');
+        setError(true);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -113,18 +115,18 @@ export function ClientLookup({ clients, onSelect }: ClientLookupProps) {
     onSelect(suggestion.party, suggestion.savedClientId);
     setQuery('');
     setRemote([]);
-    setError('');
+    setError(false);
     setSearched(false);
   };
 
-  const showPanel = Boolean(trimmed) && (suggestions.length > 0 || loading || Boolean(error) || tooShortIco || searched);
+  const showPanel = Boolean(trimmed) && (suggestions.length > 0 || loading || error || tooShortIco || searched);
   const noResults = searched && !loading && !error && suggestions.length === 0;
 
   return (
     <div className="client-lookup">
       <label className="client-lookup-label" htmlFor={`${listId}-input`}>
-        <span>Našeptávač odběratele</span>
-        <small>Začněte psát název nebo celé IČO. Uložené kontakty se doplní ihned, údaje firem načte veřejný registr ARES.</small>
+        <span>{t('lookup.label')}</span>
+        <small>{t('lookup.hint')}</small>
       </label>
       <div className="client-lookup-input">
         <Search size={18} aria-hidden="true" />
@@ -139,19 +141,19 @@ export function ClientLookup({ clients, onSelect }: ClientLookupProps) {
               choose(suggestions[0]);
             }
           }}
-          placeholder="Např. Twenty one million nebo 17259444"
+          placeholder={t('lookup.placeholder')}
           autoComplete="off"
           role="combobox"
           aria-expanded={showPanel}
           aria-controls={listId}
           aria-autocomplete="list"
         />
-        {loading && <LoaderCircle size={17} className="spin lookup-spinner" aria-label="Vyhledávám" />}
-        {!loading && query && <button className="lookup-clear" type="button" onClick={() => setQuery('')} aria-label="Vymazat hledání"><X size={16} /></button>}
+        {loading && <LoaderCircle size={17} className="spin lookup-spinner" aria-label={t('lookup.searching')} />}
+        {!loading && query && <button className="lookup-clear" type="button" onClick={() => setQuery('')} aria-label={t('lookup.clear')}><X size={16} /></button>}
       </div>
 
       {showPanel && (
-        <div className="client-lookup-panel" id={listId} role="listbox" aria-label="Doporučení odběratele">
+        <div className="client-lookup-panel" id={listId} role="listbox" aria-label={t('lookup.results')}>
           {suggestions.map((suggestion) => (
             <button
               key={suggestion.key}
@@ -165,15 +167,15 @@ export function ClientLookup({ clients, onSelect }: ClientLookupProps) {
               <span className="suggestion-icon">{suggestion.source === 'saved' ? <UsersRound size={18} /> : <Building2 size={18} />}</span>
               <span className="suggestion-content">
                 <strong>{suggestion.party.name}</strong>
-                <small>{[suggestion.party.ico && `IČO: ${suggestion.party.ico}`, suggestion.party.street, suggestion.party.city].filter(Boolean).join(' · ')}</small>
+                <small>{[suggestion.party.ico && `${t('labels.ico')}: ${suggestion.party.ico}`, suggestion.party.street, suggestion.party.city].filter(Boolean).join(' · ')}</small>
               </span>
-              <span className={`suggestion-source ${suggestion.source}`}>{suggestion.source === 'saved' ? 'Adresář' : 'ARES'}</span>
+              <span className={`suggestion-source ${suggestion.source}`}>{suggestion.source === 'saved' ? t('lookup.saved') : t('lookup.ares')}</span>
             </button>
           ))}
-          {loading && suggestions.length === 0 && <p className="lookup-message">Hledám v registru ARES…</p>}
-          {tooShortIco && <p className="lookup-message">Pro vyhledání podle IČO doplňte všech 8 číslic.</p>}
-          {error && <p className="lookup-message lookup-error"><AlertCircle size={16} /> {error}</p>}
-          {noResults && <p className="lookup-message">Nic jsme nenašli. Údaje můžete vyplnit ručně.</p>}
+          {loading && suggestions.length === 0 && <p className="lookup-message">{t('lookup.loading')}</p>}
+          {tooShortIco && <p className="lookup-message">{t('lookup.shortIco')}</p>}
+          {error && <p className="lookup-message lookup-error"><AlertCircle size={16} /> {t('lookup.error')}</p>}
+          {noResults && <p className="lookup-message">{t('lookup.noResults')}</p>}
         </div>
       )}
     </div>

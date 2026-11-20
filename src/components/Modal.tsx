@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 interface ModalProps {
   title: string;
@@ -10,6 +11,7 @@ interface ModalProps {
 }
 
 export function Modal({ title, children, onClose, wide = false }: ModalProps) {
+  const { t } = useI18n();
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -27,7 +29,7 @@ export function Modal({ title, children, onClose, wide = false }: ModalProps) {
       <section className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <header className="modal-header">
           <h2 id="modal-title">{title}</h2>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Zavřít">
+          <button className="icon-button" type="button" onClick={onClose} aria-label={t('common.close')}>
             <X size={20} />
           </button>
         </header>
@@ -46,14 +48,15 @@ interface ConfirmDialogProps {
   onClose: () => void;
 }
 
-export function ConfirmDialog({ title, message, confirmLabel = 'Potvrdit', danger = false, onConfirm, onClose }: ConfirmDialogProps) {
+export function ConfirmDialog({ title, message, confirmLabel, danger = false, onConfirm, onClose }: ConfirmDialogProps) {
+  const { t } = useI18n();
   return (
     <Modal title={title} onClose={onClose}>
       <p className="confirm-message">{message}</p>
       <div className="modal-actions">
-        <button className="button button-secondary" type="button" onClick={onClose}>Zrušit</button>
+        <button className="button button-secondary" type="button" onClick={onClose}>{t('common.cancel')}</button>
         <button className={`button ${danger ? 'button-danger' : 'button-primary'}`} type="button" onClick={() => { onConfirm(); onClose(); }}>
-          {confirmLabel}
+          {confirmLabel ?? t('common.delete')}
         </button>
       </div>
     </Modal>

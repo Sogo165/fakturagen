@@ -1,15 +1,17 @@
 import { CircleCheck, Clock3, FilePenLine, TriangleAlert } from 'lucide-react';
 import type { Invoice } from '../types';
 import { isOverdue } from '../lib/invoice';
+import { useI18n } from '../i18n';
 
 export function StatusBadge({ invoice }: { invoice: Invoice }) {
+  const { t } = useI18n();
   const overdue = isOverdue(invoice);
   const status = overdue ? 'overdue' : invoice.status;
   const labels = {
-    draft: 'Koncept',
-    sent: 'K úhradě',
-    paid: 'Uhrazeno',
-    overdue: 'Po splatnosti',
+    draft: t('status.draft'),
+    sent: t('status.sent'),
+    paid: t('status.paid'),
+    overdue: t('status.overdue'),
   };
   const icons = {
     draft: <FilePenLine size={13} />,

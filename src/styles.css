@@ -63,7 +63,13 @@ svg { flex-shrink: 0; }
 .app-main { min-height: 100vh; margin-left: 238px; }
 .topbar { position: sticky; top: 0; z-index: 20; height: 74px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.94); backdrop-filter: blur(14px); }
 .desktop-page-title { font-size: 15px; font-weight: 650; }
-.topbar-actions { display: flex; align-items: center; gap: 22px; }
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+.language-switch { display: inline-flex; align-items: center; padding: 2px; border: 1px solid var(--line); border-radius: 7px; background: #f7f9f7; }
+.language-switch button { min-width: 30px; height: 28px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: #77857e; font-size: 9px; font-weight: 700; letter-spacing: .25px; }
+.language-switch button:hover { color: var(--green); }
+.language-switch button.active { background: #fff; color: var(--green); box-shadow: 0 1px 3px rgba(26, 53, 45, .12); }
+.github-button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; border: 1px solid #dce3df; border-radius: 7px; background: #fff; color: #46564f; font-size: 11px; font-weight: 600; text-decoration: none; }
+.github-button:hover { border-color: #b9cbc2; background: #f7faf8; color: var(--green); }
 .save-indicator { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .save-indicator > span { width: 7px; height: 7px; background: #57a37f; border-radius: 50%; box-shadow: 0 0 0 3px #e6f3ec; }
 .page-content { width: 100%; max-width: 1600px; margin: 0 auto; padding: 31px 34px 45px; }
@@ -153,6 +159,7 @@ svg { flex-shrink: 0; }
 .invoice-table th:last-child, .invoice-table td:last-child { padding-right: 15px; }
 .invoice-table td { height: 70px; }
 .row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1px; white-space: nowrap; }
+.mobile-action-label { display: none; }
 .status { width: max-content; display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 20px; font-size: 9.5px; font-weight: 650; white-space: nowrap; }
 .status-paid { color: #287058; background: #e6f3ed; }
 .status-sent { color: #805610; background: #fbf0de; }
@@ -473,8 +480,11 @@ svg { flex-shrink: 0; }
 @media (max-width: 700px) {
   h2 { font-size: 24px; }
   .topbar { padding: 0 16px; }
-  .topbar-actions { gap: 10px; }
+  .topbar-actions { gap: 7px; }
   .save-indicator { display: none; }
+  .github-button { width: 39px; min-height: 39px; padding: 0; }
+  .github-button > span { display: none; }
+  .language-switch button { min-width: 26px; height: 27px; padding: 0 4px; }
   .topbar-new { min-width: 39px; min-height: 39px; padding: 0 11px; }
   .topbar-new > span { display: none; }
   .page-content { padding: 22px 15px 95px; }
@@ -521,9 +531,7 @@ svg { flex-shrink: 0; }
   .invoice-table td:nth-child(7) { grid-column: 1 / -1; margin-top: 4px; }
   .invoice-table .row-actions { justify-content: flex-start; }
   .invoice-table .icon-button { width: auto; padding: 0 11px; gap: 5px; border: 1px solid var(--line); }
-  .invoice-table .icon-button::after { font-size: 10px; }
-  .invoice-table .icon-button:first-child::after { content: "Náhled"; }
-  .invoice-table .icon-button:nth-child(2)::after { content: "Upravit"; }
+  .invoice-table .mobile-action-label { display: inline; font-size: 10px; }
   .list-footer { align-items: flex-start; flex-direction: column; }
   .client-grid { grid-template-columns: 1fr; padding: 0 15px 17px; }
   .toolbar-count { justify-content: center; }

@@ -8,6 +8,7 @@ import { ClientLookup } from '../components/ClientLookup';
 import { Modal } from '../components/Modal';
 import { InvoiceDocument } from '../components/InvoiceDocument';
 import { createId } from '../lib/id';
+import { useI18n } from '../i18n';
 
 interface InvoiceEditorProps {
   invoiceId?: string;
@@ -16,6 +17,7 @@ interface InvoiceEditorProps {
 
 export function InvoiceEditor({ invoiceId, navigate }: InvoiceEditorProps) {
   const { data, saveInvoice, saveClient, notify } = useApp();
+  const { t, locale } = useI18n();
   const isNew = !invoiceId || invoiceId === 'new';
   const existing = data.invoices.find((item) => item.id === invoiceId);
   const draftKey = `fakturagen:draft:${isNew ? 'new' : invoiceId}`;
@@ -35,7 +37,7 @@ export function InvoiceEditor({ invoiceId, navigate }: InvoiceEditorProps) {
       }
     } catch { /* Poškozený koncept se přeskočí. */ }
     if (existing) return structuredClone(existing);
-    return createInvoice(data.settings);
+    return createInvoice(data.settings, locale === 'cs-CZ' ? 'ks' : 'pcs', t('party.countryDefault'));
   });
   const [selectedClient, setSelectedClient] = useState(() => {
     const match = data.clients.find((client) => client.name === invoice.client.name && client.ico === invoice.client.ico);
@@ -74,9 +76,9 @@ export function InvoiceEditor({ invoiceId, navigate }: InvoiceEditorProps) {
   };
 
   const addCurrentClient = () => {
-    if (!invoice.client.name.trim()) { setErrors(['Před uložením do adresáře vyplňte jméno odběratele.']); return; }
+    if (!invoice.client.name.trim()) { setErrors([t('editor.errorNameForDirectory')]); return; }
     const duplicate = data.clients.find((client) => client.id !== selectedClient && invoice.client.ico && client.ico === invoice.client.ico);
-    if (duplicate) { setErrors(['Odběratel s tímto IČO už v adresáři existuje.']); return; }
+    if (duplicate) { setErrors([t('editor.errorDuplicateClient')]); return; }
     const clientId = selectedClient || createId();
     saveClient({ ...invoice.client, id: clientId, createdAt: new Date().toISOString() });
     setSelectedClient(clientId);
@@ -85,14 +87,14 @@ export function InvoiceEditor({ invoiceId, navigate }: InvoiceEditorProps) {
 
   const validate = () => {
     const problems: string[] = [];
-    if (!invoice.number.trim()) problems.push('Vyplňte číslo faktury.');
-    if (!invoice.supplier.name.trim() || !invoice.supplier.ico.trim()) problems.push('Doplňte jméno a IČO dodavatele v nastavení profilu.');
-    if (!invoice.client.name.trim()) problems.push('Vyplňte jméno nebo název odběratele.');
-    if (!invoice.issueDate || !invoice.taxDate || !invoice.dueDate) problems.push('Vyplňte všechna data faktury.');
-    if (invoice.dueDate < invoice.issueDate) problems.push('Datum splatnosti nemůže předcházet datu vystavení.');
-    if (!invoice.items.length || invoice.items.some((item) => !item.description.trim())) problems.push('Každá položka musí mít vyplněný popis.');
-    if (invoice.items.some((item) => item.quantity <= 0 || item.unitPrice < 0)) problems.push('Množství musí být kladné a cena nesmí být záporná.');
-    if (invoice.paymentMethod === 'bank' && !invoice.supplier.bankAccount.trim() && !invoice.supplier.iban.trim()) problems.push('Doplňte bankovní účet v nastavení, nebo zvolte úhradu hotově.');
+    if (!invoice.number.trim()) problems.push(t('editor.errorNumber'));
+    if (!invoice.supplier.name.trim() || !invoice.supplier.ico.trim()) problems.push(t('editor.errorSupplier'));
+    if (!invoice.client.name.trim()) problems.push(t('editor.errorCustomer'));
+    if (!invoice.issueDate || !invoice.taxDate || !invoice.dueDate) problems.push(t('editor.errorDates'));
+    if (invoice.dueDate < invoice.issueDate) problems.push(t('editor.errorDueBeforeIssue'));
+    if (!invoice.items.length || invoice.items.some((item) => !item.description.trim())) problems.push(t('editor.errorItemDescription'));
+    if (invoice.items.some((item) => item.quantity <= 0 || item.unitPrice < 0)) problems.push(t('editor.errorItemValues'));
+    if (invoice.paymentMethod === 'bank' && !invoice.supplier.bankAccount.trim() && !invoice.supplier.iban.trim()) problems.push(t('editor.errorBank'));
     setErrors(problems);
     if (problems.length) window.scrollTo({ top: 0, behavior: 'smooth' });
     return problems.length === 0;
@@ -113,96 +115,99 @@ export function InvoiceEditor({ invoiceId, navigate }: InvoiceEditorProps) {
     try {
       saveInvoice(finalized, isNew);
       localStorage.removeItem(draftKey);
-      notify(saveAsDraft ? 'Koncept faktury byl uložen.' : status === 'sent' ? 'Faktura byla úspěšně vystavena.' : 'Změny na faktuře byly uloženy.');
+      notify(saveAsDraft ? t('editor.draftSaved') : status === 'sent' ? t('editor.invoiceIssued') : t('editor.changesSaved'));
       navigate(`/invoice/${finalized.id}`);
     } catch (error) {
-      setErrors([error instanceof Error ? error.message : 'Fakturu se nepodařilo uložit.']);
+      setErrors([error instanceof Error && error.message === 'duplicate-invoice' ? t('editor.errorDuplicateNumber') : t('editor.errorSave')]);
     }
   };
 
   const supplierComplete = invoice.supplier.name && invoice.supplier.ico;
   const clientComplete = Boolean(invoice.client.name.trim());
+  const unitOptions = locale === 'cs-CZ'
+    ? ['ks', 'hod', 'den', 'měsíc', 'služba', 'm²', 'kg']
+    : ['pcs', 'hour', 'day', 'month', 'service', 'm²', 'kg'];
 
   return (
     <div className="editor-page">
       <div className="editor-heading">
-        <button className="back-button" type="button" onClick={() => navigate(isNew ? '/invoices' : `/invoice/${invoice.id}`)}><ArrowLeft size={18} /> Zpět</button>
-        <div><p className="eyebrow">{isNew ? 'NOVÝ DOKLAD' : 'ÚPRAVA DOKLADU'}</p><h2>{isNew ? 'Vystavit novou fakturu' : `Faktura ${invoice.number}`}</h2><p><span className="autosave-dot" /> Rozepsaná faktura se automaticky ukládá.</p></div>
-        <button className="button button-secondary preview-button" type="button" onClick={() => setShowPreview(true)}><Eye size={18} /> Náhled faktury</button>
+        <button className="back-button" type="button" onClick={() => navigate(isNew ? '/invoices' : `/invoice/${invoice.id}`)}><ArrowLeft size={18} /> {t('common.back')}</button>
+        <div><p className="eyebrow">{isNew ? t('editor.newEyebrow') : t('editor.editEyebrow')}</p><h2>{isNew ? t('editor.newTitle') : t('editor.editTitle', { number: invoice.number })}</h2><p><span className="autosave-dot" /> {t('editor.autosave')}</p></div>
+        <button className="button button-secondary preview-button" type="button" onClick={() => setShowPreview(true)}><Eye size={18} /> {t('editor.previewInvoice')}</button>
       </div>
 
-      {errors.length > 0 && <div className="form-error editor-errors" role="alert"><AlertCircle size={21} /><div><strong>Fakturu zatím nelze uložit</strong><ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul></div></div>}
+      {errors.length > 0 && <div className="form-error editor-errors" role="alert"><AlertCircle size={21} /><div><strong>{t('editor.cannotSave')}</strong><ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul></div></div>}
 
       <div className="editor-layout">
         <div className="editor-form-sections">
           <section className="panel form-section">
-            <header className="section-header numbered"><span>1</span><div><h3>Základní údaje</h3><p>Číslo dokladu, datumy a způsob platby</p></div></header>
+            <header className="section-header numbered"><span>1</span><div><h3>{t('editor.basicTitle')}</h3><p>{t('editor.basicSubtitle')}</p></div></header>
             <div className="section-content form-grid three-columns">
-              <label className="form-field field-full"><span>Číslo faktury *</span><input value={invoice.number} onChange={(event) => updateNumber(event.target.value)} required maxLength={40} /></label>
-              <label className="form-field"><span>Datum vystavení *</span><input type="date" value={invoice.issueDate} onChange={(event) => { const issueDate = event.target.value; setInvoice((current) => ({ ...current, issueDate, taxDate: current.taxDate === current.issueDate ? issueDate : current.taxDate, dueDate: isNew ? addDays(issueDate, data.settings.dueDays) : current.dueDate })); }} required /></label>
-              <label className="form-field"><span>Datum zdan. plnění *</span><input type="date" value={invoice.taxDate} onChange={(event) => patch('taxDate', event.target.value)} required /></label>
-              <label className="form-field"><span>Datum splatnosti *</span><input type="date" min={invoice.issueDate} value={invoice.dueDate} onChange={(event) => patch('dueDate', event.target.value)} required /></label>
-              <label className="form-field"><span>Způsob úhrady</span><select value={invoice.paymentMethod} onChange={(event) => patch('paymentMethod', event.target.value as Invoice['paymentMethod'])}><option value="bank">Bankovní převod</option><option value="cash">Hotově</option></select></label>
-              <label className="form-field"><span>Měna</span><select value={invoice.currency} onChange={(event) => patch('currency', event.target.value as Invoice['currency'])}><option value="CZK">CZK — česká koruna</option><option value="EUR">EUR — euro</option></select></label>
-              <label className="form-field"><span>Variabilní symbol</span><input value={invoice.variableSymbol} onChange={(event) => patch('variableSymbol', event.target.value.replace(/\D/g, '').slice(0, 10))} inputMode="numeric" /></label>
-              <label className="form-field"><span>Konstantní symbol</span><input value={invoice.constantSymbol} onChange={(event) => patch('constantSymbol', event.target.value.replace(/\D/g, '').slice(0, 10))} inputMode="numeric" placeholder="Nepovinné" /></label>
+              <label className="form-field field-full"><span>{t('editor.invoiceNumber')} *</span><input value={invoice.number} onChange={(event) => updateNumber(event.target.value)} required maxLength={40} /></label>
+              <label className="form-field"><span>{t('editor.issueDate')} *</span><input type="date" value={invoice.issueDate} onChange={(event) => { const issueDate = event.target.value; setInvoice((current) => ({ ...current, issueDate, taxDate: current.taxDate === current.issueDate ? issueDate : current.taxDate, dueDate: isNew ? addDays(issueDate, data.settings.dueDays) : current.dueDate })); }} required /></label>
+              <label className="form-field"><span>{t('editor.taxDate')} *</span><input type="date" value={invoice.taxDate} onChange={(event) => patch('taxDate', event.target.value)} required /></label>
+              <label className="form-field"><span>{t('editor.dueDate')} *</span><input type="date" min={invoice.issueDate} value={invoice.dueDate} onChange={(event) => patch('dueDate', event.target.value)} required /></label>
+              <label className="form-field"><span>{t('editor.paymentMethod')}</span><select value={invoice.paymentMethod} onChange={(event) => patch('paymentMethod', event.target.value as Invoice['paymentMethod'])}><option value="bank">{t('editor.bankTransfer')}</option><option value="cash">{t('editor.cash')}</option></select></label>
+              <label className="form-field"><span>{t('editor.currency')}</span><select value={invoice.currency} onChange={(event) => patch('currency', event.target.value as Invoice['currency'])}><option value="CZK">{t('editor.czk')}</option><option value="EUR">{t('editor.eur')}</option></select></label>
+              <label className="form-field"><span>{t('editor.variableSymbol')}</span><input value={invoice.variableSymbol} onChange={(event) => patch('variableSymbol', event.target.value.replace(/\D/g, '').slice(0, 10))} inputMode="numeric" /></label>
+              <label className="form-field"><span>{t('editor.constantSymbol')}</span><input value={invoice.constantSymbol} onChange={(event) => patch('constantSymbol', event.target.value.replace(/\D/g, '').slice(0, 10))} inputMode="numeric" placeholder={t('editor.optionalPlaceholder')} /></label>
             </div>
           </section>
 
           <section className="panel form-section">
-            <header className="section-header numbered"><span>2</span><div><h3>Dodavatel a odběratel</h3><p>Komu fakturujete a kdo ji vystavuje</p></div></header>
+            <header className="section-header numbered"><span>2</span><div><h3>{t('editor.partiesTitle')}</h3><p>{t('editor.partiesSubtitle')}</p></div></header>
             <div className="section-content">
-              <div className="supplier-box"><span className="supplier-icon"><Building2 size={21} /></span><div><small>DODAVATEL</small><strong>{invoice.supplier.name || 'Není nastaven profil živnostníka'}</strong><span>{[invoice.supplier.ico && `IČO: ${invoice.supplier.ico}`, invoice.supplier.street, invoice.supplier.city].filter(Boolean).join(' · ') || 'Doplňte své fakturační údaje'}</span></div><button className="text-button" type="button" onClick={() => navigate('/settings')}><Settings2 size={16} /> {supplierComplete ? 'Upravit profil' : 'Nastavit profil'} <ChevronRight size={15} /></button></div>
-              <div className="subsection-heading"><span className="small-section-icon"><UserRound size={18} /></span><h4>Odběratel</h4></div>
+              <div className="supplier-box"><span className="supplier-icon"><Building2 size={21} /></span><div><small>{t('editor.supplier')}</small><strong>{invoice.supplier.name || t('editor.noSupplier')}</strong><span>{[invoice.supplier.ico && `${t('labels.ico')}: ${invoice.supplier.ico}`, invoice.supplier.street, invoice.supplier.city].filter(Boolean).join(' · ') || t('editor.completeSupplier')}</span></div><button className="text-button" type="button" onClick={() => navigate('/settings')}><Settings2 size={16} /> {supplierComplete ? t('editor.editProfile') : t('editor.setupProfile')} <ChevronRight size={15} /></button></div>
+              <div className="subsection-heading"><span className="small-section-icon"><UserRound size={18} /></span><h4>{t('editor.customer')}</h4></div>
               <ClientLookup clients={data.clients} onSelect={selectLookupClient} />
-              <PartyFields value={invoice.client} onChange={updateClient} emailLabel="E-mail pro zaslání faktury" />
-              <div className="client-save-row"><span>Údaje můžete použít i pro další faktury.</span><button className="text-button" type="button" onClick={addCurrentClient} disabled={addedToClients}>{addedToClients ? <Check size={16} /> : <Save size={16} />}{addedToClients ? 'Uloženo v adresáři' : 'Uložit do adresáře'}</button></div>
+              <PartyFields value={invoice.client} onChange={updateClient} emailLabel={t('party.emailForInvoice')} />
+              <div className="client-save-row"><span>{t('editor.useForFuture')}</span><button className="text-button" type="button" onClick={addCurrentClient} disabled={addedToClients}>{addedToClients ? <Check size={16} /> : <Save size={16} />}{addedToClients ? t('editor.savedInDirectory') : t('editor.saveToDirectory')}</button></div>
             </div>
           </section>
 
           <section className={`panel form-section items-section ${invoice.supplier.vatPayer ? '' : 'items-no-vat'}`}>
-            <header className="section-header numbered"><span>3</span><div><h3>Fakturované položky</h3><p>Uveďte služby nebo zboží, které fakturujete</p></div></header>
+            <header className="section-header numbered"><span>3</span><div><h3>{t('editor.itemsTitle')}</h3><p>{t('editor.itemsSubtitle')}</p></div></header>
             <div className="section-content">
-              <div className="item-labels"><span>Popis položky</span><span>Množství</span><span>Jednotka</span><span>{invoice.supplier.vatPayer ? 'Cena bez DPH' : 'Cena / jednotku'}</span>{invoice.supplier.vatPayer && <span>DPH</span>}<span /></div>
+              <div className="item-labels"><span>{t('editor.itemDescription')}</span><span>{t('editor.quantity')}</span><span>{t('editor.unit')}</span><span>{invoice.supplier.vatPayer ? t('editor.priceWithoutVat') : t('editor.pricePerUnit')}</span>{invoice.supplier.vatPayer && <span>{t('editor.vat')}</span>}<span /></div>
               <div className="invoice-items-editor">{invoice.items.map((item, index) => (
                 <div className="editor-item" key={item.id}>
-                  <span className="mobile-item-number">Položka {index + 1}</span>
-                  <label className="item-description"><span className="mobile-field-label">Popis položky *</span><input aria-label={`Popis položky ${index + 1}`} value={item.description} onChange={(event) => updateItem(item.id, 'description', event.target.value)} placeholder="Např. Grafický návrh webu" required /></label>
-                  <label><span className="mobile-field-label">Množství</span><input aria-label={`Množství položky ${index + 1}`} type="number" min="0.01" step="0.01" value={item.quantity} onChange={(event) => updateItem(item.id, 'quantity', Number(event.target.value))} required /></label>
-                  <label><span className="mobile-field-label">Jednotka</span><input aria-label={`Jednotka položky ${index + 1}`} value={item.unit} onChange={(event) => updateItem(item.id, 'unit', event.target.value)} list="invoice-units" placeholder="ks" /></label>
-                  <label><span className="mobile-field-label">Cena / jednotku</span><div className="price-input"><input aria-label={`Cena položky ${index + 1}`} type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateItem(item.id, 'unitPrice', Number(event.target.value))} required /><span>{invoice.currency}</span></div></label>
-                  {invoice.supplier.vatPayer && <label><span className="mobile-field-label">Sazba DPH</span><select aria-label={`Sazba DPH položky ${index + 1}`} value={item.vatRate} onChange={(event) => updateItem(item.id, 'vatRate', Number(event.target.value) as VatRate)}><option value={21}>21 %</option><option value={12}>12 %</option><option value={0}>0 %</option></select></label>}
-                  <button className="icon-button remove-item" type="button" disabled={invoice.items.length === 1} onClick={() => setInvoice((current) => ({ ...current, items: current.items.filter((currentItem) => currentItem.id !== item.id) }))} aria-label={`Smazat položku ${index + 1}`} title="Smazat položku"><Trash2 size={17} /></button>
-                  <span className="item-line-total">{invoice.supplier.vatPayer ? ' bez DPH' : 'Celkem'} <strong>{formatMoney(roundMoney(item.quantity * item.unitPrice), invoice.currency)}</strong></span>
+                  <span className="mobile-item-number">{t('editor.item')} {index + 1}</span>
+                  <label className="item-description"><span className="mobile-field-label">{t('editor.itemDescription')} *</span><input aria-label={`${t('editor.itemDescription')} ${index + 1}`} value={item.description} onChange={(event) => updateItem(item.id, 'description', event.target.value)} placeholder={t('editor.descriptionPlaceholder')} required /></label>
+                  <label><span className="mobile-field-label">{t('editor.quantity')}</span><input aria-label={`${t('editor.quantity')} ${index + 1}`} type="number" min="0.01" step="0.01" value={item.quantity} onChange={(event) => updateItem(item.id, 'quantity', Number(event.target.value))} required /></label>
+                  <label><span className="mobile-field-label">{t('editor.unit')}</span><input aria-label={`${t('editor.unit')} ${index + 1}`} value={item.unit} onChange={(event) => updateItem(item.id, 'unit', event.target.value)} list="invoice-units" placeholder={t('editor.unitPlaceholder')} /></label>
+                  <label><span className="mobile-field-label">{t('editor.pricePerUnit')}</span><div className="price-input"><input aria-label={`${t('editor.pricePerUnit')} ${index + 1}`} type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateItem(item.id, 'unitPrice', Number(event.target.value))} required /><span>{invoice.currency}</span></div></label>
+                  {invoice.supplier.vatPayer && <label><span className="mobile-field-label">{t('editor.vatRate')}</span><select aria-label={`${t('editor.vatRate')} ${index + 1}`} value={item.vatRate} onChange={(event) => updateItem(item.id, 'vatRate', Number(event.target.value) as VatRate)}><option value={21}>21 %</option><option value={12}>12 %</option><option value={0}>0 %</option></select></label>}
+                  <button className="icon-button remove-item" type="button" disabled={invoice.items.length === 1} onClick={() => setInvoice((current) => ({ ...current, items: current.items.filter((currentItem) => currentItem.id !== item.id) }))} aria-label={`${t('editor.deleteItem')} ${index + 1}`} title={t('editor.deleteItem')}><Trash2 size={17} /></button>
+                  <span className="item-line-total">{invoice.supplier.vatPayer ? ` ${t('editor.withoutVat')}` : t('editor.total')} <strong>{formatMoney(roundMoney(item.quantity * item.unitPrice), invoice.currency, locale)}</strong></span>
                 </div>
               ))}</div>
-              <datalist id="invoice-units"><option value="ks" /><option value="hod" /><option value="den" /><option value="měsíc" /><option value="služba" /><option value="m²" /><option value="kg" /></datalist>
-              {!invoice.supplier.vatPayer && <p className="vat-notice">Nejste plátcem DPH. DPH se na této faktuře neuvádí.</p>}
-              <button className="add-item-button" type="button" onClick={() => setInvoice((current) => ({ ...current, items: [...current.items, createInvoiceItem(current.supplier.vatPayer ? data.settings.defaultVatRate : 0)] }))}><Plus size={17} /> Přidat další položku</button>
+              <datalist id="invoice-units">{unitOptions.map((unit) => <option value={unit} key={unit} />)}</datalist>
+              {!invoice.supplier.vatPayer && <p className="vat-notice">{t('editor.notVatPayer')}</p>}
+              <button className="add-item-button" type="button" onClick={() => setInvoice((current) => ({ ...current, items: [...current.items, createInvoiceItem(current.supplier.vatPayer ? data.settings.defaultVatRate : 0, locale === 'cs-CZ' ? 'ks' : 'pcs')] }))}><Plus size={17} /> {t('editor.addItem')}</button>
             </div>
           </section>
 
           <section className="panel form-section">
-            <header className="section-header numbered"><span>4</span><div><h3>Poznámka</h3><p>Doplňující informace pro odběratele</p></div></header>
-            <div className="section-content"><label className="form-field"><span>Text na faktuře <em>(nepovinné)</em></span><textarea rows={4} maxLength={1000} value={invoice.note} onChange={(event) => patch('note', event.target.value)} placeholder="Např. podrobnější specifikace zakázky nebo platební podmínky…" /><small className="align-right">{invoice.note.length} / 1000</small></label></div>
+            <header className="section-header numbered"><span>4</span><div><h3>{t('editor.noteTitle')}</h3><p>{t('editor.noteSubtitle')}</p></div></header>
+            <div className="section-content"><label className="form-field"><span>{t('editor.noteLabel')} <em>({t('common.optional')})</em></span><textarea rows={4} maxLength={1000} value={invoice.note} onChange={(event) => patch('note', event.target.value)} placeholder={t('editor.notePlaceholder')} /><small className="align-right">{invoice.note.length} / 1000</small></label></div>
           </section>
         </div>
 
         <aside className="editor-summary">
           <section className="panel summary-card">
-            <div className="summary-card-heading"><span className="section-icon"><CircleDollarSign size={20} /></span><h3>Souhrn faktury</h3></div>
-            <div className="summary-number"><span>{invoice.number || 'Bez čísla'}</span><small>Splatnost {formatDate(invoice.dueDate)}</small></div>
-            {invoice.supplier.vatPayer && <div className="summary-lines"><p><span>Základ</span><strong>{formatMoney(totals.subtotal, invoice.currency)}</strong></p>{totals.vatGroups.filter((group) => group.rate > 0).map((group) => <p key={group.rate}><span>DPH {group.rate} %</span><strong>{formatMoney(group.vat, invoice.currency)}</strong></p>)}</div>}
-            <div className="summary-total"><span>Celkem k úhradě</span><strong>{formatMoney(totals.total, invoice.currency)}</strong></div>
-            <div className="invoice-checklist"><p className={supplierComplete ? 'complete' : ''}>{supplierComplete ? <Check size={15} /> : <AlertCircle size={15} />} Údaje dodavatele</p><p className={clientComplete ? 'complete' : ''}>{clientComplete ? <Check size={15} /> : <AlertCircle size={15} />} Údaje odběratele</p><p className={invoice.paymentMethod === 'cash' || invoice.supplier.bankAccount || invoice.supplier.iban ? 'complete' : ''}>{invoice.paymentMethod === 'cash' || invoice.supplier.bankAccount || invoice.supplier.iban ? <Check size={15} /> : <AlertCircle size={15} />} Platební údaje</p></div>
-            <div className="editor-buttons"><button className="button button-primary full-button" type="button" onClick={() => handleSave(false)}><FileCheck2 size={18} /> {invoice.status === 'draft' ? 'Vystavit fakturu' : 'Uložit změny'}</button><button className="button button-secondary full-button" type="button" onClick={() => handleSave(true)}><Save size={17} /> Uložit jako koncept</button></div>
-            <p className="summary-local-note"><Landmark size={14} /> Vše se ukládá pouze v tomto prohlížeči.</p>
+            <div className="summary-card-heading"><span className="section-icon"><CircleDollarSign size={20} /></span><h3>{t('editor.summary')}</h3></div>
+            <div className="summary-number"><span>{invoice.number || t('editor.noNumber')}</span><small>{t('editor.dueOn', { date: formatDate(invoice.dueDate, locale) })}</small></div>
+            {invoice.supplier.vatPayer && <div className="summary-lines"><p><span>{t('editor.base')}</span><strong>{formatMoney(totals.subtotal, invoice.currency, locale)}</strong></p>{totals.vatGroups.filter((group) => group.rate > 0).map((group) => <p key={group.rate}><span>{t('editor.vat')} {group.rate} %</span><strong>{formatMoney(group.vat, invoice.currency, locale)}</strong></p>)}</div>}
+            <div className="summary-total"><span>{t('editor.totalDue')}</span><strong>{formatMoney(totals.total, invoice.currency, locale)}</strong></div>
+            <div className="invoice-checklist"><p className={supplierComplete ? 'complete' : ''}>{supplierComplete ? <Check size={15} /> : <AlertCircle size={15} />} {t('editor.supplierData')}</p><p className={clientComplete ? 'complete' : ''}>{clientComplete ? <Check size={15} /> : <AlertCircle size={15} />} {t('editor.customerData')}</p><p className={invoice.paymentMethod === 'cash' || invoice.supplier.bankAccount || invoice.supplier.iban ? 'complete' : ''}>{invoice.paymentMethod === 'cash' || invoice.supplier.bankAccount || invoice.supplier.iban ? <Check size={15} /> : <AlertCircle size={15} />} {t('editor.paymentData')}</p></div>
+            <div className="editor-buttons"><button className="button button-primary full-button" type="button" onClick={() => handleSave(false)}><FileCheck2 size={18} /> {invoice.status === 'draft' ? t('editor.issueInvoice') : t('common.saveChanges')}</button><button className="button button-secondary full-button" type="button" onClick={() => handleSave(true)}><Save size={17} /> {t('editor.saveDraft')}</button></div>
+            <p className="summary-local-note"><Landmark size={14} /> {t('editor.savedLocallyNote')}</p>
           </section>
-          <section className="editor-tip"><FileText size={20} /><div><strong>Tip pro rychlou práci</strong><p>Odběratele si uložte do adresáře. Příště vyplníte fakturu jen několika kliknutími.</p></div></section>
+          <section className="editor-tip"><FileText size={20} /><div><strong>{t('editor.tipTitle')}</strong><p>{t('editor.tipText')}</p></div></section>
         </aside>
       </div>
 
-      {showPreview && <Modal title="Náhled faktury" onClose={() => setShowPreview(false)} wide><div className="modal-document"><InvoiceDocument invoice={invoice} /></div><div className="modal-actions"><button className="button button-primary" type="button" onClick={() => setShowPreview(false)}>Zpět k úpravám</button></div></Modal>}
+      {showPreview && <Modal title={t('editor.modalPreview')} onClose={() => setShowPreview(false)} wide><div className="modal-document"><InvoiceDocument invoice={invoice} /></div><div className="modal-actions"><button className="button button-primary" type="button" onClick={() => setShowPreview(false)}>{t('editor.backToEditing')}</button></div></Modal>}
     </div>
   );
 }

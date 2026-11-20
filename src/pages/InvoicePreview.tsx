@@ -7,9 +7,11 @@ import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmDialog } from '../components/Modal';
 import { createInvoicePdf, downloadInvoicePdf, invoicePdfFilename, savePdfFile } from '../lib/pdf';
 import { buildInvoiceEmail } from '../lib/email';
+import { useI18n } from '../i18n';
 
 export function InvoicePreview({ invoice, navigate }: { invoice: Invoice; navigate: (path: string) => void }) {
   const { setInvoiceStatus, duplicateInvoice, deleteInvoice, notify } = useApp();
+  const { t, language } = useI18n();
   const [toDelete, setToDelete] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -17,7 +19,7 @@ export function InvoicePreview({ invoice, navigate }: { invoice: Invoice; naviga
   const printInvoice = () => {
     const previousTitle = document.title;
     const restoreTitle = () => { document.title = previousTitle; };
-    document.title = invoicePdfFilename(invoice).replace(/\.pdf$/, '');
+    document.title = invoicePdfFilename(invoice, language).replace(/\.pdf$/, '');
     window.addEventListener('afterprint', restoreTitle, { once: true });
     window.print();
   };
@@ -26,10 +28,10 @@ export function InvoicePreview({ invoice, navigate }: { invoice: Invoice; naviga
     if (exporting) return;
     setExporting(true);
     try {
-      const filename = await downloadInvoicePdf(invoice);
-      notify(`PDF bylo uloženo jako ${filename}`);
+      const filename = await downloadInvoicePdf(invoice, language);
+      notify(t('preview.pdfSaved', { file: filename }));
     } catch {
-      notify('PDF se nepodařilo vytvořit. Zkuste to znovu nebo použijte tisk.', 'error');
+      notify(t('preview.pdfError'), 'error');
     } finally {
       setExporting(false);
     }
@@ -39,14 +41,14 @@ export function InvoicePreview({ invoice, navigate }: { invoice: Invoice; naviga
     if (sendingEmail) return;
     setSendingEmail(true);
     try {
-      const email = buildInvoiceEmail(invoice, invoice.client.email);
-      const file = await createInvoicePdf(invoice);
+      const email = buildInvoiceEmail(invoice, invoice.client.email, language);
+      const file = await createInvoicePdf(invoice, language);
       const pdfFile = new File([file.blob], file.filename, { type: 'application/pdf' });
 
       if (typeof navigator.share === 'function' && navigator.canShare?.({ files: [pdfFile] })) {
         try {
           await navigator.share({ files: [pdfFile], title: email.subject, text: email.body });
-          notify('PDF bylo předáno ke sdílení.');
+          notify(t('preview.shareSuccess'));
           return;
         } catch (error) {
           if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -54,12 +56,10 @@ export function InvoicePreview({ invoice, navigate }: { invoice: Invoice; naviga
       }
 
       savePdfFile(file);
-      notify(email.recipient
-        ? 'PDF bylo uloženo. Přiložte ho do otevřeného e-mailu.'
-        : 'PDF bylo uloženo. Doplňte e-mail odběratele, pokud ho chcete mít předvyplněný.', 'info');
+      notify(email.recipient ? t('preview.attachPdf') : t('preview.missingClientEmail'), 'info');
       window.location.href = email.mailto;
     } catch {
-      notify('E-mail se nepodařilo připravit. Zkuste stáhnout PDF zvlášť.', 'error');
+      notify(t('preview.emailError'), 'error');
     } finally {
       setSendingEmail(false);
     }
@@ -70,35 +70,35 @@ export function InvoicePreview({ invoice, navigate }: { invoice: Invoice; naviga
   return (
     <div className="preview-page">
       <div className="preview-top no-print">
-        <button className="back-button" type="button" onClick={() => navigate('/invoices')}><ArrowLeft size={18} /> Zpět na faktury</button>
-        <div className="preview-status"><StatusBadge invoice={invoice} /><span>Uloženo lokálně</span></div>
+        <button className="back-button" type="button" onClick={() => navigate('/invoices')}><ArrowLeft size={18} /> {t('preview.back')}</button>
+        <div className="preview-status"><StatusBadge invoice={invoice} /><span>{t('common.savedLocally')}</span></div>
       </div>
       <section className="document-toolbar no-print">
-        <div><p className="eyebrow">DOKLAD</p><h2>Faktura {invoice.number}</h2></div>
+        <div><p className="eyebrow">{t('preview.eyebrow')}</p><h2>{t('page.preview')} {invoice.number}</h2></div>
         <div className="toolbar-actions">
-          <button className="button button-secondary" type="button" onClick={() => navigate(`/editor/${invoice.id}`)}><Pencil size={17} /> Upravit</button>
-          <button className="button button-secondary print-button" type="button" onClick={printInvoice}><Printer size={18} /> Tisk</button>
+          <button className="button button-secondary" type="button" onClick={() => navigate(`/editor/${invoice.id}`)}><Pencil size={17} /> {t('preview.edit')}</button>
+          <button className="button button-secondary print-button" type="button" onClick={printInvoice}><Printer size={18} /> {t('preview.print')}</button>
           <button className="button button-secondary" type="button" onClick={sendByEmail} disabled={sendingEmail}>
             {sendingEmail ? <LoaderCircle className="spin" size={18} /> : <Mail size={18} />}
-            {sendingEmail ? 'Připravuji…' : 'Poslat e-mailem'}
+            {sendingEmail ? t('preview.preparing') : t('preview.sendEmail')}
           </button>
           <button className="button button-primary" type="button" onClick={downloadPdf} disabled={exporting}>
             {exporting ? <LoaderCircle className="spin" size={18} /> : <FileDown size={18} />}
-            {exporting ? 'Vytvářím PDF…' : 'Stáhnout PDF'}
+            {exporting ? t('preview.creatingPdf') : t('preview.downloadPdf')}
           </button>
         </div>
       </section>
       <section className="preview-actions no-print">
-        <label>Stav faktury<select value={invoice.status} onChange={(event) => changeStatus(event.target.value as InvoiceStatus)}><option value="draft">Koncept</option><option value="sent">K úhradě</option><option value="paid">Uhrazeno</option></select></label>
-        {invoice.status === 'draft' && <button className="text-button" type="button" onClick={() => changeStatus('sent')}><Send size={16} /> Označit jako vystavenou</button>}
-        {invoice.status === 'sent' && <button className="text-button paid-action" type="button" onClick={() => changeStatus('paid')}><Check size={17} /> Označit jako uhrazenou</button>}
+        <label>{t('preview.invoiceStatus')}<select value={invoice.status} onChange={(event) => changeStatus(event.target.value as InvoiceStatus)}><option value="draft">{t('status.draft')}</option><option value="sent">{t('status.sent')}</option><option value="paid">{t('status.paid')}</option></select></label>
+        {invoice.status === 'draft' && <button className="text-button" type="button" onClick={() => changeStatus('sent')}><Send size={16} /> {t('preview.markIssued')}</button>}
+        {invoice.status === 'sent' && <button className="text-button paid-action" type="button" onClick={() => changeStatus('paid')}><Check size={17} /> {t('preview.markPaid')}</button>}
         <span className="actions-spacer" />
-        <button className="text-button" type="button" onClick={() => { const copy = duplicateInvoice(invoice.id); if (copy) navigate(`/editor/${copy.id}`); }}><Copy size={16} /> Duplikovat</button>
-        <button className="text-button danger-text" type="button" onClick={() => setToDelete(true)}><Trash2 size={16} /> Smazat</button>
+        <button className="text-button" type="button" onClick={() => { const copy = duplicateInvoice(invoice.id); if (copy) navigate(`/editor/${copy.id}`); }}><Copy size={16} /> {t('common.duplicate')}</button>
+        <button className="text-button danger-text" type="button" onClick={() => setToDelete(true)}><Trash2 size={16} /> {t('common.delete')}</button>
       </section>
       <div className="print-area"><InvoiceDocument invoice={invoice} /></div>
-      <p className="pdf-hint no-print"><Download size={16} /> Příjemce e-mailu se bere z e-mailu odběratele. PDF obsahuje skutečný text; na mobilu se přiloží přes systémové sdílení, v prohlížeči ho přiložíte ručně.</p>
-      {toDelete && <ConfirmDialog title="Smazat fakturu?" message={`Faktura ${invoice.number} bude trvale odstraněna. Tuto akci nelze vrátit zpět.`} confirmLabel="Smazat fakturu" danger onClose={() => setToDelete(false)} onConfirm={() => { deleteInvoice(invoice.id); navigate('/invoices'); }} />}
+      <p className="pdf-hint no-print"><Download size={16} /> {t('preview.emailHint')}</p>
+      {toDelete && <ConfirmDialog title={t('preview.deleteTitle')} message={t('preview.deleteMessage', { number: invoice.number })} confirmLabel={t('preview.deleteConfirm')} danger onClose={() => setToDelete(false)} onConfirm={() => { deleteInvoice(invoice.id); navigate('/invoices'); }} />}
     </div>
   );
 }

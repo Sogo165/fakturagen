@@ -1,6 +1,6 @@
 # FakturaGen
 
-Responzivní webová aplikace pro vystavování faktur. Data zůstávají pouze v prohlížeči (localStorage), aplikace funguje po prvním načtení i offline a umožňuje zálohu/obnovu dat ve formátu JSON.
+Responzivní webová aplikace pro vystavování faktur. Data zůstávají pouze v prohlížeči (localStorage), aplikace funguje po prvním načtení i offline a umožňuje zálohu/obnovu dat ve formátu JSON. Rozhraní je dostupné v češtině a angličtině; výchozí jazyk se vybere podle jazyka systému.
 
 **Živá verze:** [https://sogo165.github.io/fakturagen/](https://sogo165.github.io/fakturagen/)
 

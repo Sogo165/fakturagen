@@ -18,13 +18,13 @@ export function addDays(dateISO: string, days: number) {
   return localDateISO(date);
 }
 
-export function formatDate(dateISO: string) {
+export function formatDate(dateISO: string, locale = 'cs-CZ') {
   if (!dateISO) return '—';
-  return new Intl.DateTimeFormat('cs-CZ').format(new Date(`${dateISO}T12:00:00`));
+  return new Intl.DateTimeFormat(locale).format(new Date(`${dateISO}T12:00:00`));
 }
 
-export function formatMoney(value: number, currency = 'CZK') {
-  return new Intl.NumberFormat('cs-CZ', {
+export function formatMoney(value: number, currency = 'CZK', locale = 'cs-CZ') {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -49,7 +49,7 @@ export function supplierFromSettings(settings: Settings): Supplier {
   return { name, ico, dic, street, city, zip, country, email, phone, web, bankAccount, iban, vatPayer };
 }
 
-export function createInvoice(settings: Settings): Invoice {
+export function createInvoice(settings: Settings, unit = 'ks', country = 'Česká republika'): Invoice {
   const issueDate = localDateISO();
   const number = nextInvoiceNumber(settings, issueDate);
   const now = new Date().toISOString();
@@ -68,21 +68,21 @@ export function createInvoice(settings: Settings): Invoice {
     supplier: supplierFromSettings(settings),
     client: {
       name: '', ico: '', dic: '', street: '', city: '', zip: '',
-      country: 'Česká republika', email: '', phone: '', web: '',
+      country, email: '', phone: '', web: '',
     },
-    items: [createInvoiceItem(settings.vatPayer ? settings.defaultVatRate : 0)],
+    items: [createInvoiceItem(settings.vatPayer ? settings.defaultVatRate : 0, unit)],
     note: settings.defaultNote,
     createdAt: now,
     updatedAt: now,
   };
 }
 
-export function createInvoiceItem(vatRate: VatRate = 21): InvoiceItem {
+export function createInvoiceItem(vatRate: VatRate = 21, unit = 'ks'): InvoiceItem {
   return {
     id: createId(),
     description: '',
     quantity: 1,
-    unit: 'ks',
+    unit,
     unitPrice: 0,
     vatRate,
   };
