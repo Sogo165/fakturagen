@@ -5,6 +5,7 @@ import type { Client, Party } from '../types';
 import { Modal, ConfirmDialog } from '../components/Modal';
 import { PartyFields } from '../components/PartyFields';
 import { ClientLookup } from '../components/ClientLookup';
+import { createId } from '../lib/id';
 
 const blankParty: Party = { name: '', ico: '', dic: '', street: '', city: '', zip: '', country: 'Česká republika', email: '', phone: '', web: '' };
 
@@ -26,7 +27,7 @@ export function Clients({ initialNew = false }: { initialNew?: boolean }) {
   }, [data.clients, search]);
 
   function openNew() {
-    setEditing({ ...blankParty, id: crypto.randomUUID(), createdAt: new Date().toISOString() });
+    setEditing({ ...blankParty, id: createId(), createdAt: new Date().toISOString() });
     setIsNew(true);
     setError('');
   }

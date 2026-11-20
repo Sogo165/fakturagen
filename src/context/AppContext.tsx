@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { ReactNode } from 'react';
 import type { AppData, Client, Invoice, InvoiceStatus, Settings } from '../types';
 import { createInvoice, localDateISO, nextInvoiceNumber, numericVariableSymbol, supplierFromSettings } from '../lib/invoice';
+import { createId } from '../lib/id';
 import { emptyData, loadData, saveData } from '../lib/storage';
 
 type Toast = { id: number; message: string; kind: 'success' | 'error' | 'info' } | null;
@@ -73,7 +74,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const now = new Date().toISOString();
     const duplicate: Invoice = {
       ...original,
-      id: crypto.randomUUID(),
+      id: createId(),
       number: nextInvoiceNumber(data.settings),
       variableSymbol: numericVariableSymbol(nextInvoiceNumber(data.settings)),
       status: 'draft',
@@ -81,7 +82,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       taxDate: fresh.taxDate,
       dueDate: fresh.dueDate,
       supplier: supplierFromSettings(data.settings),
-      items: original.items.map((item) => ({ ...item, id: crypto.randomUUID() })),
+      items: original.items.map((item) => ({ ...item, id: createId() })),
       paidDate: undefined,
       createdAt: now,
       updatedAt: now,

@@ -1,4 +1,5 @@
 import type { Invoice, InvoiceItem, Settings, Supplier, VatRate } from '../types';
+import { createId } from './id';
 
 export const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -54,7 +55,7 @@ export function createInvoice(settings: Settings): Invoice {
   const now = new Date().toISOString();
 
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     number,
     status: 'draft',
     issueDate,
@@ -78,7 +79,7 @@ export function createInvoice(settings: Settings): Invoice {
 
 export function createInvoiceItem(vatRate: VatRate = 21): InvoiceItem {
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     description: '',
     quantity: 1,
     unit: 'ks',

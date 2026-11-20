@@ -7,6 +7,7 @@ import { PartyFields } from '../components/PartyFields';
 import { ClientLookup } from '../components/ClientLookup';
 import { Modal } from '../components/Modal';
 import { InvoiceDocument } from '../components/InvoiceDocument';
+import { createId } from '../lib/id';
 
 interface InvoiceEditorProps {
   invoiceId?: string;
@@ -76,7 +77,7 @@ export function InvoiceEditor({ invoiceId, navigate }: InvoiceEditorProps) {
     if (!invoice.client.name.trim()) { setErrors(['Před uložením do adresáře vyplňte jméno odběratele.']); return; }
     const duplicate = data.clients.find((client) => client.id !== selectedClient && invoice.client.ico && client.ico === invoice.client.ico);
     if (duplicate) { setErrors(['Odběratel s tímto IČO už v adresáři existuje.']); return; }
-    const clientId = selectedClient || crypto.randomUUID();
+    const clientId = selectedClient || createId();
     saveClient({ ...invoice.client, id: clientId, createdAt: new Date().toISOString() });
     setSelectedClient(clientId);
     setAddedToClients(true);

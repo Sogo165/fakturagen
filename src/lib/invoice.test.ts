@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { InvoiceItem } from '../types';
 import { accountToIban, addDays, calculateInvoice, nextInvoiceNumber, numericVariableSymbol } from './invoice';
 import { defaultSettings, createBackup, parseBackup } from './storage';
+import { createId } from './id';
 
 const item = (partial: Partial<InvoiceItem>): InvoiceItem => ({
-  id: crypto.randomUUID(),
+  id: createId(),
   description: 'Služba',
   quantity: 1,
   unit: 'ks',
